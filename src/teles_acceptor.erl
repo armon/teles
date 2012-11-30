@@ -27,8 +27,8 @@ accept_loop(Listen) ->
 
 % Starts a new handler for a client
 spawn_handler(Socket) ->
-    % Create the child
-    {ok, HandlerPid} = teles_conn_manager:start_child(Socket),
+    % Create the handler
+    {ok, HandlerPid} = teles_conn_manager:start_handler(Socket),
 
     % Hand over control of the socket
     ok = gen_tcp:controlling_process(Socket, HandlerPid),
