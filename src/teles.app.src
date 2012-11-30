@@ -10,6 +10,6 @@
                  ]},
   {mod, { teles_app, []}},
   {env, [
-    {teles_port, 28527}
+    {teles_port, 2856}
   ]}
  ]}.
