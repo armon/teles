@@ -29,7 +29,7 @@ handle_cast(start, S=#state{socket=Socket}) ->
 % Store new data in the buffer
 handle_info({tcp, _, Data}, State=#state{buffer=Buf}) ->
     NewBuf = [Buf, Data],
-    lager:debug("Got: ~p~n", [Data]),
+    lager:info("Got: ~p~n", [Data]),
     {noreply, State#state{buffer=NewBuf}};
 
 

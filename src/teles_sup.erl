@@ -27,9 +27,14 @@ init([]) ->
     {ok, AcceptPool} = application:get_env(teles_accept_pool),
 
     % Accept Manager, needs port and pool size
+    ConnManager = {conn_manager,
+           {teles_conn_manager_sup, start_link, []},
+           permanent, 60000, supervisor, dynamic},
+
+    % Accept Manager, needs port and pool size
     AcceptManager  = {acceptors,
            {teles_acceptor_sup, start_link, [Port, AcceptPool]},
            permanent, 60000, supervisor, dynamic},
 
-    {ok, { {one_for_one, 10, 10}, [AcceptManager]} }.
+    {ok, { {one_for_one, 10, 10}, [ConnManager, AcceptManager]} }.
 
