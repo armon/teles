@@ -1,6 +1,4 @@
-
 -module(teles_sup).
-
 -behaviour(supervisor).
 
 %% API
