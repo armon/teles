@@ -1,0 +1,15 @@
+{application, teles,
+ [
+  {description, "Teles is an network service for manipulating geographic data"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  lager
+                 ]},
+  {mod, { teles_app, []}},
+  {env, [
+    {teles_port, 28527}
+  ]}
+ ]}.
