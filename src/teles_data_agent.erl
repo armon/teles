@@ -13,7 +13,8 @@
     }).
 
 start_link(ID, Space) ->
-    gen_server:start_link(?MODULE, [ID, Space], []).
+    Name = list_to_atom(lists:flatten(io_lib:format("agent_~s_~p", [Space, ID]))),
+    gen_server:start_link({local, Name}, ?MODULE, [ID, Space], []).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
