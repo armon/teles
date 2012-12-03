@@ -13,7 +13,7 @@
     }).
 
 start_link(ID, Space) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [ID, Space], []).
+    gen_server:start_link(?MODULE, [ID, Space], []).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
