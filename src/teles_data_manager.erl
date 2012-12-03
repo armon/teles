@@ -3,7 +3,8 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
--export([get_agent/1, get_agents/1, list_objects/1]).
+-export([get_agent/1, get_agents/1, list_spaces/0, list_objects/1,
+         list_associations/2]).
 
 -record(state, {
         num_agents=1, % Number of agents per space
@@ -22,14 +23,38 @@ init([NumAgents]) ->
     {ok, State}.
 
 
+handle_call({create_space, Space}, _From, State) ->
+    {_, State1} = agents_for_space(Space, State),
+    {reply, ok, State1};
+
+
+handle_call({delete_space, Space}, _From, State) ->
+    Agents = State#state.agents,
+    {Resp, NewState} = case dict:find(Space, Agents) of
+        error -> {not_found, State};
+        {ok, {Pids1, Pids2}} ->
+            % Instruct all agents to shutdown
+            Pids = lists:append(Pids1, Pids2),
+            [gen_server:cast(P, stop) || P <- Pids],
+
+            % Remove them from the list
+            {ok, State#state{agents=dict:erase(Space, Agents)}}
+    end,
+    {reply, Resp, NewState};
+
+
+handle_call(list_spaces, _From, State) ->
+    Agents = State#state.agents,
+    Spaces = dict:fetch_keys(Agents),
+    {reply, Spaces, State};
+
+
 handle_call({get_agent, Space}, _From, State) ->
-    % Pick a random agent
     {Pid, State1} = unshift_agent(Space, State),
     {reply, {ok, Pid}, State1};
 
 
 handle_call({get_agents, Space}, _From, State) ->
-    % Gets all the agents
     {{Pid1, Pids2}, State1} = agents_for_space(Space, State),
     Pids = lists:append(Pid1, Pids2),
     {reply, {ok, Pids}, State1}.
@@ -108,9 +133,30 @@ get_agents(Space) ->
     Pids.
 
 
+% Creates a new space
+create_space(Space) ->
+    gen_server:call({local, ?MODULE}, {create_space, Space}).
+
+
+% Deletes a space
+delete_space(Space) ->
+    gen_server:call({local, ?MODULE}, {delete_space, Space}).
+
+
+% Lists the object keys in a given space
+list_spaces() ->
+    gen_server:call({local, ?MODULE}, list_spaces).
+
+
 % Lists the object keys in a given space
 list_objects(Space) ->
     Agent = get_agent(Space),
-    gen_server:call(Agent, {list_objects, Space}).
+    gen_server:call(Agent, list_objects).
+
+
+% Lists associations of an object
+list_associations(Space, OID) ->
+    Agent = get_agent(Space),
+    gen_server:call(Agent, {list_associations, OID}).
 
 
