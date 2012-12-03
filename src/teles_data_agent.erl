@@ -158,8 +158,8 @@ handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.
 
 
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+handle_cast(stop, State) ->
+    {stop, normal, State}.
 
 
 handle_info(_Info, State) ->
