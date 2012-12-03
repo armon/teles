@@ -25,6 +25,10 @@ start_agents(Num, Space, Results) ->
                 permanent, 5000, worker, dynamic},
 
     % Start the child
-    Res = supervisor:start_child({local, ?MODULE}, AgentSpec),
+    Res = case supervisor:start_child({local, ?MODULE}, AgentSpec) of
+        {ok, Pid} -> Pid;
+        {error, {already_started, Pid}} -> Pid;
+        {error, _} -> error
+    end,
     start_agents(Num - 1, Space, [Res | Results]).
 
