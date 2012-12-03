@@ -23,8 +23,14 @@ start_link() ->
 
 init([]) ->
     % Collect all the variables first
+    {ok, NumAgents} = application:get_env(teles_agent_concurrency),
     {ok, Port} = application:get_env(teles_port),
     {ok, AcceptPool} = application:get_env(teles_accept_pool),
+
+    % Accept Manager, needs port and pool size
+    DataManager = {data_manager,
+           {teles_data_manager_sup, start_link, [NumAgents]},
+           permanent, 60000, supervisor, dynamic},
 
     % Accept Manager, needs port and pool size
     ConnManager = {conn_manager,
@@ -36,5 +42,5 @@ init([]) ->
            {teles_acceptor_sup, start_link, [Port, AcceptPool]},
            permanent, 60000, supervisor, dynamic},
 
-    {ok, { {one_for_one, 10, 10}, [ConnManager, AcceptManager]} }.
+    {ok, { {one_for_one, 10, 10}, [DataManager, ConnManager, AcceptManager]} }.
 
