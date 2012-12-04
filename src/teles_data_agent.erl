@@ -253,11 +253,11 @@ disassociate(OID, Obj, GID, State) ->
 
     % Remove the GID -> OID mapping
     GeoTable = State#state.geos,
-    [Geo] = ets:lookup(GeoTable, GID),
+    [{GID, Geo}] = ets:lookup(GeoTable, GID),
     OIDS = Geo#geo.objects -- [OID],
 
     % Check if we should delete the Geo
-    State = case OIDS of
+    case OIDS of
         % No objects for this
         [] ->
             ets:delete(GeoTable, GID),
@@ -345,5 +345,29 @@ associate_test() ->
 
     % Check the object association
     [GID] = Obj2#object.geos.
+
+
+disassociate_test() ->
+    % Create and association
+    Blank = blank_state(1, test),
+    ets:insert(Blank#state.objects, {tubez, #object{id=tubez}}),
+    [{tubez, Obj}] = ets:lookup(Blank#state.objects, tubez),
+    S1 = associate(tubez, Obj, 48.1, 121.2, foobar, Blank),
+
+    % Remove the assocation
+    RG = make_geo(48.1, 121.2),
+    GID = RG#geometry.value,
+    [{tubez, Obj2}] = ets:lookup(Blank#state.objects, tubez),
+    S2 = disassociate(tubez, Obj2, GID, S1),
+
+    % Check the associations
+    [{tubez, Obj3}] = ets:lookup(Blank#state.objects, tubez),
+    [] = Obj3#object.geos,
+
+    % Check the geometry is deleted
+    [] = ets:lookup(Blank#state.geos, RG#geometry.value),
+
+    % Rstar is clean
+    [] = rstar:search_nearest(S2#state.rstar, RG, 1).
 
 -endif.
