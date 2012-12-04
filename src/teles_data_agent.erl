@@ -276,7 +276,7 @@ disassociate(OID, Obj, GID, State) ->
 unique_results(RGeos, State) ->
     % Resolve the mapped GID's
     GeoTable = State#state.geos,
-    Geos = [lists:nth(1, ets:lookup(GeoTable, R#geometry.value))
+    Geos = [element(2, lists:nth(1, ets:lookup(GeoTable, R#geometry.value)))
             || R <- RGeos],
 
     % Fold over each matching GID
