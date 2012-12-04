@@ -304,6 +304,17 @@ blank_state(ID, Space) ->
     #state{id=ID, space=Space, objects=ObjectTable,
                    geos=GeoTable, rstar=Rtree}.
 
+
+insert(ID, Lat, Lng, State) ->
+    case ets:lookup(State#state.objects, ID) of
+        [{ID, Obj}] -> Obj;
+        [] ->
+            Obj = #object{id=ID},
+            ets:insert(State#state.objects, {ID, Obj})
+    end,
+    associate(ID, Obj, Lat, Lng, foobar, State).
+
+
 make_geo_test() ->
     G = #geometry{dimensions=2, mbr=[{12.12, 12.12}, {5.1, 5.1}]},
     G1 = G#geometry{value=erlang:phash2(G, 4294967295)},
@@ -399,5 +410,21 @@ multi_disassociate_test() ->
 
     % Rstar is not empty
     [RG] = rstar:search_nearest(S2#state.rstar, RG, 1).
+
+
+unique_result_test() ->
+    Blank = blank_state(1, test),
+    S1 = insert(tubez, 48.1, 121.2, Blank),
+    S2 = insert(foo, 48.1, 121.2, S1),
+    S3 = insert(bar, 48.1, 121.2, S2),
+
+    S4 = insert(tubez, 48.2, 121.2, S3),
+    S5 = insert(foo, 48.2, 121.2, S4),
+    S6 = insert(bar, 48.2, 121.2, S5),
+
+    RG = make_geo(48.1, 121.2),
+    RGeos = rstar:search_nearest(S6#state.rstar, RG, 2),
+    [bar, tubez, foo] = unique_results(RGeos, S6).
+
 
 -endif.
