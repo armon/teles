@@ -37,6 +37,10 @@
         objects=[]  % List of OID's
 }).
 
+% Timeout in MSEC for a state transfer
+% to timeout. Default to 60 seconds.
+-define(TRANSFER_TIMEOUT, 60000).
+
 start_link(ID, Space) ->
     Name = list_to_atom(lists:flatten(io_lib:format("agent_~s_~p", [Space, ID]))),
     gen_server:start_link({local, Name}, ?MODULE, [ID, Space], []).
@@ -161,6 +165,10 @@ handle_call({query_nearest, SearchPoint, K}, _From, State) ->
     {reply, {ok, UniqueOIDs}, State};
 
 
+handle_call(state_transfer, _From, State) ->
+    {reply, {ok, State}, State};
+
+
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.
 
@@ -169,12 +177,34 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 % Invoked when an agent is being recovered after a crash
-handle_cast({recover, Manager, {_Pid1, _Pid2}}, State) ->
-    % TODO: Recovery
+handle_cast({recover, Manager, {Pid1, Pid2}}, State) ->
+    % Get the siblings
+    Siblings = lists:append(Pid1, Pid2),
+    NS = case Siblings of
+        [] -> lager:warning("No siblings available for recovery!"), State;
+        [Sibling | _] ->
+            % Log the attempt
+            lager:info("Attempting recovery from agent ~p", [Sibling]),
+
+            % Perform a state transfer
+            {ok, OtherState} = gen_server:call(Sibling, state_transfer,
+                                               ?TRANSFER_TIMEOUT),
+            lager:info("State transfer from agent ~p complete", [Sibling]),
+
+            % Clone the tables
+            lager:info("Cloning objects from ~p", [Sibling]),
+            clone_table(OtherState#state.objects, State#state.objects),
+            lager:info("Cloning geometries from ~p", [Sibling]),
+            clone_table(OtherState#state.geos, State#state.geos),
+
+            % Merge in the Rtree as our updated state
+            lager:info("Merging R-tree from ~p", [Sibling]),
+            State#state{rstar=OtherState#state.rstar}
+    end,
 
     % Notify the manager we are ready
     gen_server:cast(Manager, {ready, self(), State#state.space}),
-    {noreply, State}.
+    {noreply, NS}.
 
 
 handle_info(_Info, State) ->
@@ -187,6 +217,13 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
+
+% Clones one ETS table into a destination
+clone_table(Src, Dest) ->
+    ets:foldl(fun(Elem, _) ->
+        ets:insert(Dest, Elem)
+    end, true, Src).
+
 
 % Makes a Rstar Geometry object from a Lat/Lng
 make_geo(Lat, Lng) ->
@@ -434,5 +471,19 @@ unique_result_test() ->
     RGeos = rstar:search_nearest(S4#state.rstar, RG, 2),
     [bar, tubez, foo] = unique_results(RGeos, S4).
 
+
+clone_test() ->
+    E1 = ets:new(a1, []),
+    E2 = ets:new(a2, []),
+
+    ets:insert(E1, {tubez, 1}),
+    ets:insert(E1, {foo, 2}),
+    ets:insert(E1, {bar, 2}),
+
+    clone_table(E1, E2),
+
+    [{tubez, 1}] = ets:insert(E1, tubez),
+    [{foo, 2}] = ets:insert(E1, foo),
+    [{bar, 3}] = ets:insert(E1, bar).
 
 -endif.
