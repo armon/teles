@@ -22,10 +22,10 @@ start_agents(0, _, Results) -> Results;
 start_agents(Num, Space, Results) ->
     AgentSpec = {{agent, Space, Num},
                 {teles_data_agent, start_link, [Num, Space]},
-                permanent, 5000, worker, dynamic},
+                temporary, 5000, worker, dynamic},
 
     % Start the child
-    Res = case supervisor:start_child({local, ?MODULE}, AgentSpec) of
+    Res = case supervisor:start_child(?MODULE, AgentSpec) of
         {ok, Pid} -> Pid;
         {error, {already_started, Pid}} -> Pid;
         {error, _} -> error
