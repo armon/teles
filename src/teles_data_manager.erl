@@ -3,8 +3,10 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
--export([get_agent/1, get_agents/1, list_spaces/0, list_objects/1,
-         list_associations/2]).
+-export([get_agent/1, get_agents/1, create_space/1, delete_space/1,
+         list_spaces/0, list_objects/1, list_associations/2,
+         add_object/3, associate/5, disassociate/3, delete/2,
+         query_within/2, query_around/3, query_nearest/3]).
 
 -record(state, {
         num_agents=1, % Number of agents per space
@@ -117,6 +119,20 @@ unshift_agent(Space, State) ->
     end.
 
 
+% Calls a request to multiple pids
+multi_call(Pids, Request, Timeout) ->
+    F = fun(Pid) ->
+        gen_server:call(Pid, Request, Timeout)
+    end,
+    rpc:pmap(F, [], Pids).
+
+
+% Checks that all list elements are 'ok'
+all_ok([ok | More]) -> all_ok(More);
+all_ok([]) -> ok;
+all_ok([Val | Other]) -> {error, Val, Other}.
+
+
 %%%% ------------------------------------------------------------------
 %% External Function Definitions
 %% ------------------------------------------------------------------
@@ -158,5 +174,47 @@ list_objects(Space) ->
 list_associations(Space, OID) ->
     Agent = get_agent(Space),
     gen_server:call(Agent, {list_associations, OID}).
+
+
+% Adds a new object
+add_object(Space, OID, Value) ->
+    Agents = get_agents(Space),
+    all_ok(multi_call(Agents, {add_object, OID, Value}, 1000)).
+
+
+% Adds an association between an object and point
+associate(Space, OID, Lat, Lng, Value) ->
+    Agents = get_agents(Space),
+    all_ok(multi_call(Agents, {associate, OID, Lat, Lng, Value}, 1000)).
+
+
+% Removes an association between an object and point
+disassociate(Space, OID, GID) ->
+    Agents = get_agents(Space),
+    all_ok(multi_call(Agents, {disassociate, OID, GID}, 1000)).
+
+
+% Removes an object
+delete(Space, OID) ->
+    Agents = get_agents(Space),
+    all_ok(multi_call(Agents, {delete, OID}, 1000)).
+
+
+% Queries within a box
+query_within(Space, SearchBox) ->
+    Agent = get_agent(Space),
+    gen_server:call(Agent, {query_within, SearchBox}).
+
+
+% Search around a point
+query_around(Space, SearchPoint, Distance) ->
+    Agent = get_agent(Space),
+    gen_server:call(Agent, {query_around, SearchPoint, Distance}).
+
+
+% Search around a point
+query_nearest(Space, SearchPoint, K) ->
+    Agent = get_agent(Space),
+    gen_server:call(Agent, {query_nearest, SearchPoint, K}).
 
 
