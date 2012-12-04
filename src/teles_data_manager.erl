@@ -71,8 +71,14 @@ handle_call({get_agents, Space}, _From, State) ->
     {reply, {ok, Pids}, State1}.
 
 
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+% Received when an agent completes recovery
+handle_cast({ready, AgentPid, Space}, State) ->
+    % Add the agent to the ready list of pids
+    Agents = State#state.agents,
+    {ok, {Pid1, Pid2}} = dict:find(Space, Agents),
+    Added = {[AgentPid | Pid1], Pid2},
+    NewAgents = dict:store(Space, Added, Agents),
+    {noreply, State#state{agents=NewAgents}}.
 
 
 % Update state on an agent being destroyed normally
