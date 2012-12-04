@@ -478,12 +478,12 @@ clone_test() ->
 
     ets:insert(E1, {tubez, 1}),
     ets:insert(E1, {foo, 2}),
-    ets:insert(E1, {bar, 2}),
+    ets:insert(E1, {bar, 3}),
 
     clone_table(E1, E2),
 
-    [{tubez, 1}] = ets:insert(E1, tubez),
-    [{foo, 2}] = ets:insert(E1, foo),
-    [{bar, 3}] = ets:insert(E1, bar).
+    [{tubez, 1}] = ets:lookup(E2, tubez),
+    [{foo, 2}] = ets:lookup(E2, foo),
+    [{bar, 3}] = ets:lookup(E2, bar).
 
 -endif.
