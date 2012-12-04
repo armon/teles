@@ -18,7 +18,7 @@ init([NumAgents]) ->
 start_agents(Num, Space) ->
     start_agents(Num, Space, []).
 
-start_agents(0, _, Results) -> Results;
+start_agents(0, _, Results) -> lists:reverse(Results);
 start_agents(Num, Space, Results) ->
     Res = start_agent(Num, Space),
     start_agents(Num - 1, Space, [Res | Results]).
