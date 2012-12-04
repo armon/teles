@@ -91,21 +91,18 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, Info}, State) ->
             NewPid = teles_data_manager_sup:start_agent(Num, Space),
             S1 = add_agents(Num, Space, [NewPid], State),
 
-            % Remove the old pid
-            S2 = S1#state{pids=dict:erase(Pid, S1#state.pids)},
-
             % Remove the old AND new pid from the agents
             % The new agent is removed until a recovery can be performed
-            {ok, {Pid1, Pid2}} = dict:find(Space, State#state.agents),
+            {ok, {Pid1, Pid2}} = dict:find(Space, S1#state.agents),
             SpaceAgents = {Pid1 -- [Pid, NewPid], Pid2 -- [Pid, NewPid]},
-            NewAgents = dict:store(Space, SpaceAgents, State#state.agents),
-            S3 = S2#state{agents=NewAgents},
 
             % Notify the new PID to perform a recovery
             gen_server:cast(NewPid, {recover, self(), SpaceAgents}),
 
-            % Return the new state without the new or old pid
-            S3
+            % Return the new state without the new or old pid,
+            NewAgents = dict:store(Space, SpaceAgents, State#state.agents),
+            #state{agents=NewAgents,
+                    pids=dict:erase(Pid, S1#state.pids)}
     end,
     {noreply, NS}.
 
