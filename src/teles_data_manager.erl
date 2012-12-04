@@ -96,13 +96,16 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, normal}, State) ->
 
 % Trigger a repair if we lose an agent
 handle_info({'DOWN', _MonitorRef, _Type, Pid, Info}, State) ->
-    lager:error("Data agent ~p died with reason ~p", [Pid, Info]),
     NS = case dict:find(Pid, State#state.pids) of
         error -> State;
         {ok, {Space, Num}} ->
+            % Log death
+            lager:error("Data agent ~p for ~p (~p) died with reason ~p",
+                        [Num, Space, Pid, Info]),
+
             % Start the replacement agent
-            NewPid = teles_data_manager_sup:start_agent(Num, Space),
-            S1 = add_agents(Num, Space, [NewPid], State),
+            Res = {_, NewPid} = teles_data_manager_sup:start_agent(Num, Space),
+            S1 = add_agents(Num, Space, [Res], State),
 
             % Remove the old AND new pid from the agents
             % The new agent is removed until a recovery can be performed
