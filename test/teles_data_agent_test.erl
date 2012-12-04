@@ -103,3 +103,53 @@ delete_test_() ->
     end
     ]}.
 
+
+insert(Pid, Name, Lat, Lng) ->
+    ?assertEqual(ok,
+        gen_server:call(Pid, {add_object, Name, 0})),
+    ?assertEqual(ok,
+        gen_server:call(Pid, {associate, Name, Lat, Lng, foo})).
+
+
+query_test_() ->
+    {foreach,
+     fun() ->
+        Pid = setup(),
+        insert(Pid, tubez, 48.1, 120.2),
+        insert(Pid, foo, -48.1, 120.2),
+        insert(Pid, bar, 49.2, 120.2),
+        insert(Pid, baz, 45.0, 120.2),
+        Pid
+     end,
+    fun cleanup/1,
+    [fun(Pid) ->
+        ?_test(begin
+            RG = teles_data_agent:make_geo(48.1, 120.2),
+            ?assertEqual({ok, [tubez]},
+                gen_server:call(Pid, {query_nearest, RG, 1})),
+            ?assertEqual({ok, [bar, tubez]},
+                gen_server:call(Pid, {query_nearest, RG, 2}))
+        end)
+    end,
+    fun(Pid) ->
+        ?_test(begin
+            RG = teles_data_agent:make_geo(48.1, 120.2),
+            ?assertEqual({ok, [tubez]},
+                gen_server:call(Pid, {query_around, RG, 1})),
+            ?assertEqual({ok, [bar, tubez]},
+                gen_server:call(Pid, {query_around, RG, 2}))
+        end)
+    end,
+    fun(Pid) ->
+        ?_test(begin
+            Box = #geometry{dimensions=2, mbr=[{40, 50}, {100, 130}]},
+            ?assertEqual({ok, [bar, tubez, baz]},
+                gen_server:call(Pid, {query_within, Box})),
+
+            Box2 = #geometry{dimensions=2, mbr=[{-50, 50}, {100, 130}]},
+            ?assertEqual({ok, [bar, tubez, baz, foo]},
+                gen_server:call(Pid, {query_within, Box2}))
+        end)
+    end
+    ]}.
+
