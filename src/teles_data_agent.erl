@@ -328,22 +328,22 @@ associate_test() ->
     Blank = blank_state(1, test),
 
     % Create an object
-    Obj = #object{id=tubez}
+    Obj = #object{id=tubez},
     ets:insert(Blank#state.objects, {tubez, Obj}),
 
     % Associate
     S1 = associate(tubez, Obj, 48.1, 121.2, foobar, Blank),
 
     % Should be a no-op
-    S1 = associate(tubez, Obj, 48.1, 121.2, foobar, S1),
+    [{tubez, Obj2}] = ets:lookup(S1#state.objects, tubez),
+    S1 = associate(tubez, Obj2, 48.1, 121.2, foobar, S1),
 
     % Check for the geo
     RG = make_geo(48.1, 121.2),
-    {_, Geo} = ets:lookup(S1#state.geos, RG#geometry.value),
+    [{GID, Geo}] = ets:lookup(S1#state.geos, RG#geometry.value),
     [tubez] = Geo#geo.objects,
 
     % Check the object association
-    {tubez, Obj2} = ets:lookup(S1#state.objects, tubez),
-    [RG#geometry.value] = Obj2#object.geos.
+    [GID] = Obj2#object.geos.
 
 -endif.
