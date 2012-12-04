@@ -79,3 +79,27 @@ disassociate_test_() ->
     end
     ]}.
 
+delete_test_() ->
+    {foreach,
+    fun setup/0,
+    fun cleanup/1,
+    [fun(Pid) ->
+        ?_test(begin
+            ?assertEqual(not_found,
+                         gen_server:call(Pid, {delete, tubez}))
+        end)
+    end,
+    fun(Pid) ->
+        ?_test(begin
+            ?assertEqual(ok,
+                gen_server:call(Pid, {add_object, tubez, 0})),
+            ?assertEqual(ok,
+                gen_server:call(Pid, {associate, tubez, 48.1, 120.2, foo})),
+            ?assertEqual(ok,
+                gen_server:call(Pid, {delete, tubez})),
+            ?assertEqual(not_found,
+                         gen_server:call(Pid, {delete, tubez}))
+        end)
+    end
+    ]}.
+
