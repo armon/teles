@@ -176,7 +176,7 @@ agents_for_space(Space, State) ->
         {ok, Val} -> {Val, State};
         error ->
             S1 = start_agents(Space, State),
-            case dict:find(Space, Agents) of
+            case dict:find(Space, S1#state.agents) of
                 {ok, Val} -> {Val, S1};
                 error -> {{[], [], []}, S1}
             end
@@ -309,18 +309,18 @@ query_nearest(Space, SearchPoint, K) ->
 -ifdef(TEST).
 
 blank_state() ->
-    #state{num_agents=1, agents=dict:new()}.
+    #state{num_agents=1, agents=dict:new(), pids=dict:new()}.
 
 agents_for_space_test() ->
     M = em:new(),
     em:strict(M, teles_data_manager_sup, start_agents,
-              [1, tubez], {return, [abc]}),
+              [1, tubez], {return, [{new, abc}]}),
     ok = em:replay(M),
 
     Blank = blank_state(),
-    {{[abc], []}, S1} = agents_for_space(tubez, Blank),
-    {{[abc], []}, S1} = agents_for_space(tubez, S1),
-    ?assertEqual({ok, {[abc], []}},
+    {{[abc], [], []}, S1} = agents_for_space(tubez, Blank),
+    {{[abc], [], []}, S1} = agents_for_space(tubez, S1),
+    ?assertEqual({ok, {[abc], [], []}},
         dict:find(tubez, S1#state.agents)),
 
     em:verify(M).
@@ -329,19 +329,19 @@ agents_for_space_test() ->
 unshift_agent_test() ->
     M = em:new(),
     em:strict(M, teles_data_manager_sup, start_agents,
-              [1, tubez], {return, [abc, bcd]}),
+              [1, tubez], {return, [{new, abc}, {new, bcd}]}),
     ok = em:replay(M),
 
     Blank = blank_state(),
-    {abc, S1} = unshift_agent(tubez, Blank),
-    {bcd, S2} = unshift_agent(tubez, S1),
-    {abc, S3} = unshift_agent(tubez, S2),
+    {bcd, S1} = unshift_agent(tubez, Blank),
+    {abc, S2} = unshift_agent(tubez, S1),
+    {bcd, S3} = unshift_agent(tubez, S2),
 
-    ?assertEqual({ok, {[bcd], [abc]}},
+    ?assertEqual({ok, {[abc], [bcd], []}},
         dict:find(tubez, S1#state.agents)),
-    ?assertEqual({ok, {[], [bcd, abc]}},
+    ?assertEqual({ok, {[], [abc, bcd], []}},
         dict:find(tubez, S2#state.agents)),
-    ?assertEqual({ok, {[bcd], [abc]}},
+    ?assertEqual({ok, {[abc], [bcd], []}},
         dict:find(tubez, S3#state.agents)),
 
     em:verify(M).
