@@ -26,8 +26,8 @@ start_agents(Num, Space, Results) ->
 
     % Start the child
     Res = case supervisor:start_child(?MODULE, AgentSpec) of
-        {ok, Pid} -> Pid;
-        {error, {already_started, Pid}} -> Pid;
+        {ok, Pid} -> {new, Pid};
+        {error, {already_started, Pid}} -> {exists, Pid};
         {error, _} -> error
     end,
     start_agents(Num - 1, Space, [Res | Results]).
