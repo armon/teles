@@ -370,4 +370,34 @@ disassociate_test() ->
     % Rstar is clean
     [] = rstar:search_nearest(S2#state.rstar, RG, 1).
 
+
+multi_disassociate_test() ->
+    % Create and association
+    Blank = blank_state(1, test),
+    ets:insert(Blank#state.objects, {tubez, #object{id=tubez}}),
+    [{tubez, Obj}] = ets:lookup(Blank#state.objects, tubez),
+    S1 = associate(tubez, Obj, 48.1, 121.2, foobar, Blank),
+
+    % Associate a second object with the same geo
+    ets:insert(Blank#state.objects, {foo, #object{id=foo}}),
+    [{foo, ObjFoo}] = ets:lookup(Blank#state.objects, foo),
+    S2 = associate(foo, ObjFoo, 48.1, 121.2, foobar, S1),
+
+    % Remove one assocation
+    RG = make_geo(48.1, 121.2),
+    GID = RG#geometry.value,
+    [{tubez, Obj2}] = ets:lookup(Blank#state.objects, tubez),
+    S2 = disassociate(tubez, Obj2, GID, S1),
+
+    % Check the associations
+    [{tubez, Obj3}] = ets:lookup(Blank#state.objects, tubez),
+    [] = Obj3#object.geos,
+
+    % Check the geometry is not deleted
+    [{_, Geo}] = ets:lookup(Blank#state.geos, RG#geometry.value),
+    [foo] = Geo#geo.objects,
+
+    % Rstar is not empty
+    [RG] = rstar:search_nearest(S2#state.rstar, RG, 1).
+
 -endif.
