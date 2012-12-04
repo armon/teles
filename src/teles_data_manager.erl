@@ -241,5 +241,26 @@ agents_for_space_test() ->
 
     em:verify(M).
 
+
+unshift_agent_test() ->
+    M = em:new(),
+    em:strict(M, teles_data_manager_sup, start_agents,
+              [1, tubez], {return, [abc, bcd]}),
+    ok = em:replay(M),
+
+    Blank = blank_state(),
+    {abc, S1} = unshift_agent(tubez, Blank),
+    {bcd, S2} = unshift_agent(tubez, S1),
+    {abc, S3} = unshift_agent(tubez, S2),
+
+    ?assertEqual({ok, {[bcd], [abc]}},
+        dict:find(tubez, S1#state.agents)),
+    ?assertEqual({ok, {[], [bcd, abc]}},
+        dict:find(tubez, S2#state.agents)),
+    ?assertEqual({ok, {[bcd], [abc]}},
+        dict:find(tubez, S3#state.agents)),
+
+    em:verify(M).
+
 -endif.
 
