@@ -78,10 +78,14 @@ handle_cast({ready, AgentPid, Space}, State) ->
     lager:info("Agent ~p for ~s recovered!", [AgentPid, Space]),
 
     Agents = State#state.agents,
-    {ok, {Pid1, Pid2, Rec}} = dict:find(Space, Agents),
-    Added = {[AgentPid | Pid1], Pid2, Rec -- [AgentPid]},
-    NewAgents = dict:store(Space, Added, Agents),
-    {noreply, State#state{agents=NewAgents}}.
+    NS = case dict:find(Space, Agents) of
+        error -> State;
+        {ok, {Pid1, Pid2, Rec}} ->
+            Added = {[AgentPid | Pid1], Pid2, Rec -- [AgentPid]},
+            NewAgents = dict:store(Space, Added, Agents),
+            State#state{agents=NewAgents}
+    end,
+    {noreply, NS}.
 
 
 % Update state on an agent being destroyed normally
