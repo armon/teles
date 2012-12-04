@@ -262,5 +262,11 @@ unshift_agent_test() ->
 
     em:verify(M).
 
+
+all_ok_test() ->
+    ?assertEqual(ok, all_ok([])),
+    ?assertEqual(ok, all_ok([ok, ok, ok])),
+    ?assertEqual({error, bad, [ok]}, all_ok([ok, bad, ok])).
+
 -endif.
 
