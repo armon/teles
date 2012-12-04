@@ -10,7 +10,7 @@
 
 -record(state, {
         num_agents=1, % Number of agents per space
-        agents,       % Space -> {[agent()], [agent()]}
+        agents,       % Space -> {[agent()], [agent()], [agent()]}
         pids          % Pid -> {Space, Num}
     }).
 
@@ -43,9 +43,9 @@ handle_call({delete_space, Space}, _From, State) ->
     Agents = State#state.agents,
     {Resp, NewState} = case dict:find(Space, Agents) of
         error -> {not_found, State};
-        {ok, {Pids1, Pids2}} ->
+        {ok, {Pids1, Pids2, Rec}} ->
             % Instruct all agents to shutdown
-            Pids = lists:append(Pids1, Pids2),
+            Pids = lists:append([Pids1, Pids2, Rec]),
             [gen_server:cast(P, stop) || P <- Pids],
 
             % Remove them from the list
@@ -66,17 +66,20 @@ handle_call({get_agent, Space}, _From, State) ->
 
 
 handle_call({get_agents, Space}, _From, State) ->
-    {{Pid1, Pids2}, State1} = agents_for_space(Space, State),
-    Pids = lists:append(Pid1, Pids2),
+    {{Pid1, Pids2, Rec}, State1} = agents_for_space(Space, State),
+    Pids = lists:append([Pid1, Pids2, Rec]),
     {reply, {ok, Pids}, State1}.
 
 
 % Received when an agent completes recovery
+% Adds the agent to the ready list of pids
 handle_cast({ready, AgentPid, Space}, State) ->
-    % Add the agent to the ready list of pids
+    % Log the recovery
+    lager:info("Agent ~p for ~s recovered!", [AgentPid, Space]),
+
     Agents = State#state.agents,
-    {ok, {Pid1, Pid2}} = dict:find(Space, Agents),
-    Added = {[AgentPid | Pid1], Pid2},
+    {ok, {Pid1, Pid2, Rec}} = dict:find(Space, Agents),
+    Added = {[AgentPid | Pid1], Pid2, Rec -- [AgentPid]},
     NewAgents = dict:store(Space, Added, Agents),
     {noreply, State#state{agents=NewAgents}}.
 
@@ -99,8 +102,10 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, Info}, State) ->
 
             % Remove the old AND new pid from the agents
             % The new agent is removed until a recovery can be performed
-            {ok, {Pid1, Pid2}} = dict:find(Space, S1#state.agents),
-            SpaceAgents = {Pid1 -- [Pid, NewPid], Pid2 -- [Pid, NewPid]},
+            {ok, {Pid1, Pid2, Rec}} = dict:find(Space, S1#state.agents),
+            SpaceAgents = {Pid1 -- [Pid, NewPid],
+                           Pid2 -- [Pid, NewPid],
+                           [NewPid | Rec -- [Pid]]},
 
             % Notify the new PID to perform a recovery
             gen_server:cast(NewPid, {recover, self(), SpaceAgents}),
@@ -147,8 +152,8 @@ add_agents(Num, Space, [Res | More], State) ->
 
             % Map the Space -> {Pid, Pid}
             Agents = case dict:find(Space, State#state.agents) of
-                error -> {[Pid], []};
-                {ok, {Pid1, Pid2}} -> {[Pid | Pid1], Pid2}
+                error -> {[Pid], [], []};
+                {ok, {Pid1, Pid2, Rec}} -> {[Pid | Pid1], Pid2, Rec}
             end,
             NewAgents = dict:store(Space, Agents, State#state.agents),
 
@@ -160,7 +165,7 @@ add_agents(Num, Space, [Res | More], State) ->
 
 % Returns a list of pids for a space if they exist,
 % or starts them otherwise.
--spec agents_for_space(term(), #state{}) -> {{[pid()], [pid()]}, #state{}}.
+-spec agents_for_space(term(), #state{}) -> {{[pid()], [pid()], [pid()]}, #state{}}.
 agents_for_space(Space, State) ->
     Agents = State#state.agents,
     case dict:find(Space, Agents) of
@@ -169,7 +174,7 @@ agents_for_space(Space, State) ->
             S1 = start_agents(Space, State),
             case dict:find(Space, Agents) of
                 {ok, Val} -> {Val, S1};
-                error -> {{[], []}, S1}
+                error -> {{[], [], []}, S1}
             end
     end.
 
@@ -183,18 +188,18 @@ unshift_agent(Space, State) ->
     case Agents of
         % If there is only a single PID, we can save time and
         % avoid the state updates
-        {[A], []} -> {A, State1};
+        {[A], [], _} -> {A, State1};
 
         % Pop from the left side while we can, append to right
-        {[A | More], Other} ->
-            NewAgents = dict:store(Space, {More, [A | Other]}, AgentsDict),
+        {[A | More], Other, Recover} ->
+            NewAgents = dict:store(Space, {More, [A | Other], Recover}, AgentsDict),
             NewState = State1#state{agents=NewAgents},
             {A, NewState};
 
         % Reverse right side and move to left
-        {[], Ready} ->
+        {[], Ready, Recover} ->
             [A | More] = lists:reverse(Ready),
-            NewAgents = dict:store(Space, {More, [A]}, AgentsDict),
+            NewAgents = dict:store(Space, {More, [A], Recover}, AgentsDict),
             NewState = State1#state{agents=NewAgents},
             {A, NewState}
     end.
