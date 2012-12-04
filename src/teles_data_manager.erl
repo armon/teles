@@ -98,33 +98,30 @@ agents_for_space(Space, State) ->
 -spec unshift_agent(term(), #state{}) -> {pid(), #state{}}.
 unshift_agent(Space, State) ->
     AgentsDict = State#state.agents,
-    Agents = agents_for_space(Space, State),
+    {Agents, State1} = agents_for_space(Space, State),
     case Agents of
         % If there is only a single PID, we can save time and
         % avoid the state updates
-        {[A], []} -> {A, State};
+        {[A], []} -> {A, State1};
 
         % Pop from the left side while we can, append to right
         {[A | More], Other} ->
             NewAgents = dict:store(Space, {More, [A | Other]}, AgentsDict),
-            NewState = State#state{agents=NewAgents},
+            NewState = State1#state{agents=NewAgents},
             {A, NewState};
 
         % Reverse right side and move to left
         {[], Ready} ->
             [A | More] = lists:reverse(Ready),
             NewAgents = dict:store(Space, {More, [A]}, AgentsDict),
-            NewState = State#state{agents=NewAgents},
+            NewState = State1#state{agents=NewAgents},
             {A, NewState}
     end.
 
 
 % Calls a request to multiple pids
 multi_call(Pids, Request, Timeout) ->
-    F = fun(Pid) ->
-        gen_server:call(Pid, Request, Timeout)
-    end,
-    rpc:pmap(F, [], Pids).
+    rpc:pmap({gen_server, call}, [Request, Timeout], Pids).
 
 
 % Checks that all list elements are 'ok'
