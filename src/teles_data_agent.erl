@@ -177,14 +177,15 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 % Invoked when an agent is being recovered after a crash
-handle_cast({recover, Manager, {Pid1, Pid2}}, State) ->
+handle_cast({recover, Manager, {Pid1, Pid2, _}}, State) ->
     % Get the siblings
     Siblings = lists:append(Pid1, Pid2),
     NS = case Siblings of
         [] -> lager:warning("No siblings available for recovery!"), State;
         [Sibling | _] ->
             % Log the attempt
-            lager:info("Attempting recovery from agent ~p", [Sibling]),
+            lager:info("Attempting recovery from agent ~p for ~p",
+                       [Sibling, State#state.id]),
 
             % Perform a state transfer
             {ok, OtherState} = gen_server:call(Sibling, state_transfer,
