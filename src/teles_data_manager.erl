@@ -32,11 +32,13 @@ init([NumAgents]) ->
 
 
 handle_call({create_space, Space}, _From, State) ->
+    lager:info("Creating space ~s", [Space]),
     {_, State1} = agents_for_space(Space, State),
     {reply, ok, State1};
 
 
 handle_call({delete_space, Space}, _From, State) ->
+    lager:info("Deleting space ~s", [Space]),
     Agents = State#state.agents,
     {Resp, NewState} = case dict:find(Space, Agents) of
         error -> {not_found, State};
