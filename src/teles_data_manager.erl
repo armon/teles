@@ -86,8 +86,8 @@ agents_for_space(Space, State) ->
         {ok, Val} -> {Val, State};
         error ->
             Num = State#state.num_agents,
-            Pids = teles_data_manager_sup:star_agents(Num, Space),
-            NewAgents = dict:put(Space, {Pids, []}, Agents),
+            Pids = teles_data_manager_sup:start_agents(Num, Space),
+            NewAgents = dict:store(Space, {Pids, []}, Agents),
             NewState = State#state{agents=NewAgents},
             {{Pids, []}, NewState}
     end.
@@ -139,29 +139,29 @@ all_ok([Val | Other]) -> {error, Val, Other}.
 
 % Gets the Pid of an agent for a space
 get_agent(Space) ->
-    {ok, Pid} = gen_server:call({local, ?MODULE}, {get_agent, Space}),
+    {ok, Pid} = gen_server:call(?MODULE, {get_agent, Space}),
     Pid.
 
 
 % Gets all the Pids for agents for a space
 get_agents(Space) ->
-    {ok, Pids} = gen_server:call({local, ?MODULE}, {get_agents, Space}),
+    {ok, Pids} = gen_server:call(?MODULE, {get_agents, Space}),
     Pids.
 
 
 % Creates a new space
 create_space(Space) ->
-    gen_server:call({local, ?MODULE}, {create_space, Space}).
+    gen_server:call(?MODULE, {create_space, Space}).
 
 
 % Deletes a space
 delete_space(Space) ->
-    gen_server:call({local, ?MODULE}, {delete_space, Space}).
+    gen_server:call(?MODULE, {delete_space, Space}).
 
 
 % Lists the object keys in a given space
 list_spaces() ->
-    gen_server:call({local, ?MODULE}, list_spaces).
+    gen_server:call(?MODULE, list_spaces).
 
 
 % Lists the object keys in a given space
