@@ -8,6 +8,7 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-compile(export_all).
 -endif.
 
 -record(state, {
@@ -67,9 +68,10 @@ handle_call({list_associations, Id}, _From, State) ->
         [{Id, Obj}] ->
             % Convert the GID's to actual geometries
             GeoTable = State#state.geos,
-            GeosRaw = lists:flatten([ets:lookup(GeoTable, G) ||
+            GeosRaw = lists:flatten(
+                [element(2, lists:nth(1, ets:lookup(GeoTable, G)))||
                                      G <- Obj#object.geos]),
-            Geos = [{G#geo.id, G#geo.value, G#geo.rgeo} ||G <- GeosRaw],
+            Geos = [{G#geo.id, G#geo.value, G#geo.rgeo} || G <- GeosRaw],
 
             {ok, Id, Obj#object.value, Geos}
     end,
