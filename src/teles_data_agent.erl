@@ -60,7 +60,7 @@ handle_call({list_associations, Id}, _From, State) ->
     Table = State#state.objects,
     Resp = case ets:lookup(Table, Id) of
         [] -> not_found;
-        [Obj] ->
+        [{Id, Obj}] ->
             % Convert the GID's to actual geometries
             GeoTable = State#state.geos,
             GeosRaw = lists:flatten([ets:lookup(GeoTable, G) ||
