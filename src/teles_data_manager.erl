@@ -10,7 +10,8 @@
 
 -record(state, {
         num_agents=1, % Number of agents per space
-        agents        % Space -> {[agent()], [agent()]}
+        agents,       % Space -> {[agent()], [agent()]}
+        pids          % Pid -> {Space, Num}
     }).
 
 -ifdef(TEST).
@@ -27,7 +28,7 @@ start_link(NumAgents) ->
 %% ------------------------------------------------------------------
 
 init([NumAgents]) ->
-    State = #state{num_agents=NumAgents, agents=dict:new()},
+    State = #state{num_agents=NumAgents, agents=dict:new(), pids=dict:new()},
     {ok, State}.
 
 
@@ -74,8 +75,39 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
-handle_info(_Info, State) ->
-    {noreply, State}.
+% Update state on an agent being destroyed normally
+handle_info({'DOWN', _MonitorRef, _Type, Pid, normal}, State) ->
+    Pids = State#state.pids,
+    NS = State#state{pids=dict:erase(Pid, Pids)},
+    {noreply, NS};
+
+% Trigger a repair if we lose an agent
+handle_info({'DOWN', _MonitorRef, _Type, Pid, Info}, State) ->
+    lager:error("Data agent ~p died with reason ~p", [Pid, Info]),
+    NS = case dict:find(Pid, State#state.pids) of
+        error -> State;
+        {ok, {Space, Num}} ->
+            % Start the replacement agent
+            NewPid = teles_data_manager_sup:start_agent(Num, Space),
+            S1 = add_agents(Num, Space, [NewPid], State),
+
+            % Remove the old pid
+            S2 = S1#state{pids=dict:erase(Pid, S1#state.pids)},
+
+            % Remove the old AND new pid from the agents
+            % The new agent is removed until a recovery can be performed
+            {ok, {Pid1, Pid2}} = dict:find(Space, State#state.agents),
+            SpaceAgents = {Pid1 -- [Pid, NewPid], Pid2 -- [Pid, NewPid]},
+            NewAgents = dict:store(Space, SpaceAgents, State#state.agents),
+            S3 = S2#state{agents=NewAgents},
+
+            % Notify the new PID to perform a recovery
+            gen_server:cast(NewPid, {recover, self(), SpaceAgents}),
+
+            % Return the new state without the new or old pid
+            S3
+    end,
+    {noreply, NS}.
 
 
 terminate(_Reason, _State) -> ok.
@@ -85,6 +117,44 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+% Starts new agents for a given space
+start_agents(Space, State) ->
+    % Start the Pids
+    Num = State#state.num_agents,
+    Pids = teles_data_manager_sup:start_agents(Num, Space),
+
+    % Add the agents and update our state
+    add_agents(Num, Space, Pids, State).
+
+
+% Iteratively processes newly started agents
+add_agents(_, _, [], State) -> State;
+add_agents(Num, Space, [Res | More], State) ->
+    NewState = case Res of
+        error ->
+            lager:error("Failed to start data agent num ~d for ~s", [Num, Space]),
+            State;
+
+        {_, Pid} ->
+            % Monitor the process for crashes
+            erlang:monitor(process, Pid),
+
+            % Map the Pid -> {Space, Num}
+            NewPids = dict:store(Pid, {Space, Num}, State#state.pids),
+
+            % Map the Space -> {Pid, Pid}
+            Agents = case dict:find(Space, State#state.agents) of
+                error -> {[Pid], []};
+                {ok, {Pid1, Pid2}} -> {[Pid | Pid1], Pid2}
+            end,
+            NewAgents = dict:store(Space, Agents, State#state.agents),
+
+            % Update state
+            State#state{agents=NewAgents, pids=NewPids}
+    end,
+    add_agents(Num - 1, Space, More, NewState).
+
+
 % Returns a list of pids for a space if they exist,
 % or starts them otherwise.
 -spec agents_for_space(term(), #state{}) -> {{[pid()], [pid()]}, #state{}}.
@@ -93,11 +163,11 @@ agents_for_space(Space, State) ->
     case dict:find(Space, Agents) of
         {ok, Val} -> {Val, State};
         error ->
-            Num = State#state.num_agents,
-            Pids = teles_data_manager_sup:start_agents(Num, Space),
-            NewAgents = dict:store(Space, {Pids, []}, Agents),
-            NewState = State#state{agents=NewAgents},
-            {{Pids, []}, NewState}
+            S1 = start_agents(Space, State),
+            case dict:find(Space, Agents) of
+                {ok, Val} -> {Val, S1};
+                error -> {{[], []}, S1}
+            end
     end.
 
 
