@@ -6,6 +6,10 @@
 
 -include_lib("rstar/include/rstar.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -record(state, {
         id,         % Agent ID
         space,      % Name of the space, e.g. 'cities'
@@ -291,3 +295,32 @@ unique_results(RGeos, State) ->
     sets:to_list(Matching).
 
 
+-ifdef(TEST).
+
+blank_state(ID, Space) ->
+    ObjectTable = ets:new(objects, []),
+    GeoTable = ets:new(geometries, []),
+    Rtree = rstar:new(2),
+    #state{id=ID, space=Space, objects=ObjectTable,
+                   geos=GeoTable, rstar=Rtree}.
+
+make_geo_test() ->
+    G = #geometry{dimensions=2, mbr=[{12.12, 12.12}, {5.1, 5.1}]},
+    G1 = G#geometry{value=erlang:phash2(G, 4294967295)},
+    ?assertEqual(G1, make_geo(12.12, 5.1)).
+
+
+get_or_create_test() ->
+    RG = make_geo(47.3, 120.12),
+    Blank = blank_state(1, test),
+
+    % This should make a new geometry
+    {Geo, S1} = get_or_create(RG, foobar, Blank),
+
+    % Should return the same geometry
+    {Geo, S1} = get_or_create(RG, foobar, S1),
+
+    % Should find the RG in the tree
+    [RG] = rstar:search_nearest(S1#state.rstar, RG, 1).
+
+-endif.
