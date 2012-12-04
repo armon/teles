@@ -416,15 +416,13 @@ unique_result_test() ->
     Blank = blank_state(1, test),
     S1 = insert(tubez, 48.1, 121.2, Blank),
     S2 = insert(foo, 48.1, 121.2, S1),
-    S3 = insert(bar, 48.1, 121.2, S2),
 
-    S4 = insert(tubez, 48.2, 121.2, S3),
-    S5 = insert(foo, 48.2, 121.2, S4),
-    S6 = insert(bar, 48.2, 121.2, S5),
+    S3 = insert(tubez, 48.2, 121.2, S2),
+    S4 = insert(bar, 48.2, 121.2, S3),
 
     RG = make_geo(48.1, 121.2),
-    RGeos = rstar:search_nearest(S6#state.rstar, RG, 2),
-    [bar, tubez, foo] = unique_results(RGeos, S6).
+    RGeos = rstar:search_nearest(S4#state.rstar, RG, 2),
+    [bar, tubez, foo] = unique_results(RGeos, S4).
 
 
 -endif.
