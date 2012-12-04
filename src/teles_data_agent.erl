@@ -77,8 +77,8 @@ handle_call({add_object, Id, Value}, _From, State) ->
     Obj = #object{id=Id, value=Value},
 
     % Use insert_new so we don't nuke existing entries
-    Resp = ets:insert_new(Table, {Id, Obj}),
-    {reply, Resp, State};
+    ets:insert_new(Table, {Id, Obj}),
+    {reply, ok, State};
 
 
 handle_call({associate, Id, Lat, Lng, Value}, _From, State) ->
