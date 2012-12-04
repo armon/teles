@@ -83,12 +83,13 @@ handle_call({add_object, Id, Value}, _From, State) ->
 
 handle_call({associate, Id, Lat, Lng, Value}, _From, State) ->
     Table = State#state.objects,
-    Resp = case ets:lookup(Table, Id) of
-        [] -> not_found;
+    {Resp, NewState} = case ets:lookup(Table, Id) of
+        [] -> {not_found, State};
         [{Id, Obj}] ->
-            associate(Id, Obj, Lat, Lng, Value, State), ok
+            S1 = associate(Id, Obj, Lat, Lng, Value, State),
+            {ok, S1}
     end,
-    {reply, Resp, State};
+    {reply, Resp, NewState};
 
 
 handle_call({disassociate, OID, GID}, _From, State) ->
