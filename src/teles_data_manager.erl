@@ -13,6 +13,12 @@
         agents        % Space -> {[agent()], [agent()]}
     }).
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-compile(export_all).
+-endif.
+
+
 start_link(NumAgents) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [NumAgents], []).
 
@@ -214,4 +220,26 @@ query_nearest(Space, SearchPoint, K) ->
     Agent = get_agent(Space),
     gen_server:call(Agent, {query_nearest, SearchPoint, K}).
 
+
+
+-ifdef(TEST).
+
+blank_state() ->
+    #state{num_agents=1, agents=dict:new()}.
+
+agents_for_space_test() ->
+    M = em:new(),
+    em:strict(M, teles_data_manager_sup, start_agents,
+              [1, tubez], {return, [abc]}),
+    ok = em:replay(M),
+
+    Blank = blank_state(),
+    {{[abc], []}, S1} = agents_for_space(tubez, Blank),
+    {{[abc], []}, S1} = agents_for_space(tubez, S1),
+    ?assertEqual({ok, {[abc], []}},
+        dict:find(tubez, S1#state.agents)),
+
+    em:verify(M).
+
+-endif.
 
