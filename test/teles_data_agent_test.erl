@@ -51,3 +51,31 @@ list_no_assciation_test_() ->
     end
     ]}.
 
+disassociate_test_() ->
+    {foreach,
+    fun setup/0,
+    fun cleanup/1,
+    [fun(Pid) ->
+        ?_test(begin
+            ?assertEqual(not_found,
+                         gen_server:call(Pid, {disassociate, tubez, foo}))
+        end)
+    end,
+    fun(Pid) ->
+        ?_test(begin
+            ?assertEqual(ok,
+                gen_server:call(Pid, {add_object, tubez, 0})),
+            ?assertEqual(ok,
+                gen_server:call(Pid, {associate, tubez, 48.1, 120.2, foo})),
+
+            RG = teles_data_agent:make_geo(48.1, 120.2),
+            GID = RG#geometry.value,
+            ?assertEqual(ok,
+                gen_server:call(Pid, {disassociate, tubez, GID})),
+
+            ?assertEqual({ok, tubez, 0, []},
+                gen_server:call(Pid, {list_associations, tubez}))
+        end)
+    end
+    ]}.
+
