@@ -166,7 +166,15 @@ handle_call(stop, _From, State) ->
 
 
 handle_cast(stop, State) ->
-    {stop, normal, State}.
+    {stop, normal, State};
+
+% Invoked when an agent is being recovered after a crash
+handle_cast({recover, Manager, {_Pid1, _Pid2}}, State) ->
+    % TODO: Recovery
+
+    % Notify the manager we are ready
+    gen_server:cast(Manager, {ready, self(), State#state.space}),
+    {noreply, State}.
 
 
 handle_info(_Info, State) ->
