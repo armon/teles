@@ -148,7 +148,7 @@ handle_call({query_within, SearchBox}, _From, State) ->
 handle_call({query_around, SearchPoint, Distance}, _From, State) ->
     % Search the R-tree
     Tree = State#state.rstar,
-    RGeos = rstar:search_around(Tree, SearchPoint, Distance),
+    RGeos = teles_geo_query:search_around(Tree, SearchPoint, Distance),
 
     % Resolve the unique OID's
     UniqueOIDs = unique_results(RGeos, State),
@@ -158,7 +158,7 @@ handle_call({query_around, SearchPoint, Distance}, _From, State) ->
 handle_call({query_nearest, SearchPoint, K}, _From, State) ->
     % Search the R-tree
     Tree = State#state.rstar,
-    RGeos = rstar:search_nearest(Tree, SearchPoint, K),
+    RGeos = teles_geo_query:search_nearest(Tree, SearchPoint, K),
 
     % Resolve the unique OID's
     UniqueOIDs = unique_results(RGeos, State),
