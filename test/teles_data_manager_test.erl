@@ -138,4 +138,39 @@ query_test_() ->
     ]}.
 
 
+recovery_test_() ->
+    {foreach,
+    fun() ->
+        Res = setup(),
+        ok = teles_data_manager:add_object(test, foo, bar),
+        ok = teles_data_manager:associate(test, foo, 47.1, 120.2, a),
+
+        ok = teles_data_manager:add_object(test, bar, bar),
+        ok = teles_data_manager:associate(test, bar, 47.2, 120.3, a),
+
+        ok = teles_data_manager:add_object(test, baz, bar),
+        ok = teles_data_manager:associate(test, baz, 47.2, 120.4, a),
+        Res
+    end,
+    fun cleanup/1,
+    [fun(_) ->
+        ?_test(begin
+            [A, _] = teles_data_manager:get_agents(test),
+
+            % Kill A
+            gen_server:cast(A, whoops),
+            timer:sleep(100),
+
+            % Data should be saved
+            ?assertEqual({ok, [foo, baz, bar]},
+                         teles_data_manager:list_objects(test)),
+            ?assertEqual({ok, [foo, baz, bar]},
+                         teles_data_manager:list_objects(test)),
+            ?assertEqual({ok, [foo, baz, bar]},
+                         teles_data_manager:list_objects(test))
+        end)
+    end
+    ]}.
+
+
 
