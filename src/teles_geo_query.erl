@@ -10,7 +10,7 @@
 %%%
 -module(teles_geo_query).
 -export([query_within/2, query_around/3, query_nearest/3,
-         distance/2, latitudinal_width/1]).
+         distance/2, latitudinal_width/1, longitudinal_width/1]).
 -include_lib("rstar/include/rstar.hrl").
 
 -ifdef(TEST).
@@ -22,6 +22,10 @@
 
 % Multiplier to convert degrees to radians
 -define(DEGREES_TO_RAD, 0.017453292519943295).
+
+% Constants
+-define(PI, 3.141592653589793).
+-define(E_SQ, 0.00669437999014).
 
 % Queries within a box, since the box is provided already, no adjustment
 % is necessary
@@ -68,6 +72,15 @@ latitudinal_width(Lat) ->
     111132.954 - 559.822 * math:cos(2.0 * LatRad) + 1.175 * math:cos(4.0 * LatRad).
 
 
+% Returns the width of a longitudinal degree
+% in meters for the given Latitude
+longitudinal_width(Lat) ->
+    LatRad = Lat * ?DEGREES_TO_RAD,
+    Numerator = ?PI * ?RADIUS_METERS * math:cos(LatRad),
+    Denom = 180 * math:sqrt(1 - ?E_SQ * math:pow(math:sin(LatRad), 2)),
+    Numerator / Denom.
+
+
 -ifdef(TEST).
 
 distance_test() ->
@@ -86,5 +99,13 @@ latitudinal_width_test() ->
     ?assertEqual(111132, round(latitudinal_width(45))),
     ?assertEqual(111412, round(latitudinal_width(60))),
     ?assertEqual(111694, round(latitudinal_width(90))).
+
+
+longitudinal_width_test() ->
+    ?assertEqual(111319, round(longitudinal_width(0))),
+    ?assertEqual(107550, round(longitudinal_width(15))),
+    ?assertEqual(78847, round(longitudinal_width(45))),
+    ?assertEqual(55800, round(longitudinal_width(60))),
+    ?assertEqual(0, round(longitudinal_width(90))).
 
 -endif.
