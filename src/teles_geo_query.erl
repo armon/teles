@@ -145,4 +145,28 @@ longitudinal_width_test() ->
     ?assertEqual(55800, round(longitudinal_width(60))),
     ?assertEqual(0, round(longitudinal_width(90))).
 
+search_box_equator_test() ->
+    Point = rstar_geometry:point2d(0, 0, undefined),
+    Box = search_box(Point, 10000), % 10km
+    #geometry{mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]} = Box,
+
+    ?assertEqual(-0.13565538330708235, MinLat),
+    ?assertEqual(0.13565538330708235, MaxLat),
+    ?assertEqual(-0.1347476677660395, MinLng),
+    ?assertEqual(0.1347476677660395, MaxLng).
+
+
+search_box_offset_test() ->
+    Point = rstar_geometry:point2d(45, -120, undefined),
+    Box = search_box(Point, 10000), % 10km
+    #geometry{mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]} = Box,
+
+    assert_close(45.0 - 0.134974625, MinLat),
+    assert_close(45.0 + 0.134974625, MaxLat),
+    assert_close(-120.0 - 0.19069, MinLng),
+    assert_close(-120.0 + 0.19069, MaxLng).
+
+assert_close(A, B) ->
+    ?assertEqual(trunc(A*10000), trunc(B*10000)).
+
 -endif.
