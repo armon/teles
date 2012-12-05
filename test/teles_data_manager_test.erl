@@ -11,6 +11,28 @@ setup() ->
 
 cleanup(Pid) -> unlink(Pid), exit(Pid, kill).
 
+
+get_agents_test_() ->
+    {setup,
+    fun setup/0,
+    fun cleanup/1,
+    [fun() ->
+        ?_test(begin
+            Pids = teles_data_manager:get_agents(test),
+            ?assertEqual(2, length(Pids))
+        end)
+    end,
+    fun() ->
+        ?_test(begin
+            [A, B] = teles_data_manager:get_agents(test),
+            ?assertEqual(A, teles_data_manager:get_agent(test)),
+            ?assertEqual(B, teles_data_manager:get_agent(test)),
+            ?assertEqual(A, teles_data_manager:get_agent(test))
+        end)
+    end
+    ]}.
+
+
 list_test_() ->
     {setup,
     fun setup/0,
@@ -34,4 +56,5 @@ list_test_() ->
         end)
     end
     ]}.
+
 
