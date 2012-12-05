@@ -9,21 +9,28 @@ setup() ->
         {error, {already_started, Pid}} -> Pid
     end.
 
-cleanup(_Pid) -> ok.
+cleanup(Pid) -> unlink(Pid), exit(Pid, kill).
 
 list_test_() ->
-    {foreach,
+    {setup,
     fun setup/0,
     fun cleanup/1,
-    [fun(_) ->
+    [fun() ->
         ?_test(begin
             ?assertEqual([], teles_data_manager:list_spaces())
         end)
     end,
-    fun(_) ->
+    fun() ->
         ?_test(begin
             ?assertEqual(ok, teles_data_manager:create_space(test)),
             ?assertEqual([test], teles_data_manager:list_spaces())
+        end)
+    end,
+    fun() ->
+        ?_test(begin
+            ?assertEqual(ok, teles_data_manager:create_space(test)),
+            ?assertEqual(ok, teles_data_manager:delete_space(test)),
+            ?assertEqual([], teles_data_manager:list_spaces())
         end)
     end
     ]}.
