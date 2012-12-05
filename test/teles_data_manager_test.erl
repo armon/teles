@@ -4,6 +4,7 @@
 -include_lib("rstar/include/rstar.hrl").
 
 setup() ->
+    error_logger:tty(false),
     case teles_data_manager_sup:start_link(2) of
         {ok, Pid} -> Pid;
         {error, {already_started, Pid}} -> Pid
@@ -169,7 +170,26 @@ recovery_test_() ->
             ?assertEqual({ok, [foo, baz, bar]},
                          teles_data_manager:list_objects(test))
         end)
+    end,
+    fun(_) ->
+        ?_test(begin
+            [A, B] = teles_data_manager:get_agents(test),
+
+            % Kill both
+            gen_server:cast(A, whoops),
+            gen_server:cast(B, whoops),
+            timer:sleep(100),
+
+            % Data should be lost
+            ?assertEqual({ok, []},
+                         teles_data_manager:list_objects(test)),
+            ?assertEqual({ok, []},
+                         teles_data_manager:list_objects(test)),
+            ?assertEqual({ok, []},
+                         teles_data_manager:list_objects(test))
+        end)
     end
+
     ]}.
 
 
