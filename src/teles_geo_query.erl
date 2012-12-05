@@ -2,14 +2,14 @@
 % This module is used to do proper Geographic queries
 % which take into consideration the non-2D nature of the Earth.
 %
-% We use the data manager and underlying R-Tree to represent the Earth's
+% We use the underlying R-Tree to represent the Earth's
 % surface as 2D in Lat/Lng, which is effiecient as a primarily filter.
 % This module provides the secondary filtering and data manipulation to
 % translate to reality.
 %
 %%%
 -module(teles_geo_query).
--export([query_within/2, query_around/3, query_nearest/3,
+-export([search_around/3, search_nearest/3,
          distance/2, latitudinal_width/1, longitudinal_width/1]).
 -include_lib("rstar/include/rstar.hrl").
 
@@ -27,24 +27,61 @@
 -define(PI, 3.141592653589793).
 -define(E_SQ, 0.00669437999014).
 
-% Queries within a box, since the box is provided already, no adjustment
-% is necessary
-query_within(Space, SearchBox) ->
-    teles_data_manager:query_within(Space, SearchBox).
-
 
 % Search around a point. We replace this query with a search rectangle
-% that adjusts for narrowing longitude
-query_around(Space, SearchPoint, Distance) ->
-    % TODO
-    teles_data_manager:query_around(Space, SearchPoint, Distance).
+% that adjusts for narrowing longitude. Distance is in meters.
+search_around(Tree, SearchPoint, Distance) ->
+    % Perform the primary search
+    SearchBox = search_box(SearchPoint, Distance),
+    Primary = rstar:search_within(Tree, SearchBox),
+
+    % Perform secondary filter on the distance
+    [G || G <- Primary, distance(SearchPoint, G) =< Distance].
 
 
 % Search around a point. We replace the K with 2*K, and sort on true
 % distance and select the first K
-query_nearest(Space, SearchPoint, K) ->
-    % TODO
-    teles_data_manager:query_nearest(Space, SearchPoint, 2*K).
+search_nearest(Tree, SearchPoint, K) ->
+    % Do a primary search with 2*K
+    Primary =  rstar:search_nearest(Tree, SearchPoint, 2 * K),
+
+    % Sort on the distance to the search point
+    Sorted = lists:sort([{distance(SearchPoint, G), G} || G <- Primary]),
+
+    % Select the first K
+    [G || {_Dist, G} <- lists:sublist(Sorted, K)].
+
+
+% Generates a search box from a point and a distance
+search_box(SearchPoint, Distance) ->
+    % Extract the Lat/Lng
+    #geometry{mbr=[{Lat, _}, {Lng, _}]} = SearchPoint,
+
+    % Pad the distance a bit so we over-query
+    DistancePad = 1.5 * Distance,
+
+    % Get the lat/lng binding box. We compute the width of a degree
+    % of latitude in meters, and then create the bounding box using
+    % the padded distance and the width
+    LatWidth = latitudinal_width(Lat),
+    LatSpread = DistancePad / LatWidth,
+    MinLat = Lat - LatSpread,
+    MaxLat = Lat + LatSpread,
+
+    % Determine the widest latitude. The value farthest from
+    % the equator will result in the smallest longitude width,
+    % which creates the largest spread in turn.
+    WidestLat = if
+        Lat >= 0 -> MaxLat;
+        Lat < 0 -> MinLat
+    end,
+    LngWidth = longitudinal_width(WidestLat),
+    LngSpread = DistancePad / LngWidth,
+    MinLng = Lng - LngSpread,
+    MaxLng = Lng + LngSpread,
+
+    % Create a search box
+    #geometry{dimensions=2, mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]}.
 
 
 % Estimates the distance between two points using the
