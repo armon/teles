@@ -58,3 +58,44 @@ list_test_() ->
     ]}.
 
 
+object_test_() ->
+    {setup,
+    fun setup/0,
+    fun cleanup/1,
+    [fun() ->
+        ?_test(begin
+            [] = teles_data_manager:list_objects(test),
+            ok = teles_data_manager:add_object(test, foo, bar),
+            [foo] = teles_data_manager:list_objects(test),
+            ok = teles_data_manager:delete_object(test, foo),
+            [] = teles_data_manager:list_objects(test)
+        end)
+    end
+    ]}.
+
+
+association_test_() ->
+    {setup,
+    fun setup/0,
+    fun cleanup/1,
+    [fun() ->
+        ?_test(begin
+            ok = teles_data_manager:add_object(test, foo, bar),
+            {ok, foo, bar, []} = teles_data_manager:list_associations(test, foo),
+
+            ok = teles_data_manager:associate(test, foo, 47.1, 120.2, a),
+            {ok, foo, bar, Geos} = teles_data_manager:list_associations(test, foo),
+            [Geo] = Geos,
+
+            RG = teles_data_agent:make_geo(47.1, 120.2),
+            GID = RG#geometry.value,
+            ?assertEqual({GID, a, RG}, Geo),
+
+            ok = teles_data_manager:disassociate(test, foo, GID),
+            {ok, foo, bar, []} = teles_data_manager:list_associations(test, foo)
+        end)
+    end
+    ]}.
+
+
+
