@@ -137,7 +137,7 @@ query_test_() ->
             ?assertEqual({ok, [tubez]},
                 gen_server:call(Pid, {query_around, RG, 1})),
             ?assertEqual({ok, [bar, tubez]},
-                gen_server:call(Pid, {query_around, RG, 2}))
+                gen_server:call(Pid, {query_around, RG, 140000}))
         end)
     end,
     fun(Pid) ->
