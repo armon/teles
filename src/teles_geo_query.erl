@@ -9,7 +9,8 @@
 %
 %%%
 -module(teles_geo_query).
--export([query_within/2, query_around/3, query_nearest/3, distance/2]).
+-export([query_within/2, query_around/3, query_nearest/3,
+         distance/2, latitudinal_width/1]).
 -include_lib("rstar/include/rstar.hrl").
 
 -ifdef(TEST).
@@ -60,6 +61,13 @@ distance(A, B) ->
     DistanceAngle * ?RADIUS_METERS.
 
 
+% Returns the width of a latitudinal degree
+% in meters for the given Latitude
+latitudinal_width(Lat) ->
+    LatRad = Lat * ?DEGREES_TO_RAD,
+    111132.954 - 559.822 * math:cos(2.0 * LatRad) + 1.175 * math:cos(4.0 * LatRad).
+
+
 -ifdef(TEST).
 
 distance_test() ->
@@ -71,5 +79,12 @@ distance_near_test() ->
     A = rstar_geometry:point2d(47.123, 120.567, undefined),
     B = rstar_geometry:point2d(47.276, 120.576, undefined),
     ?assertEqual(17045.480008358903, distance(A, B)).
+
+latitudinal_width_test() ->
+    ?assertEqual(110574, round(latitudinal_width(0))),
+    ?assertEqual(110649, round(latitudinal_width(15))),
+    ?assertEqual(111132, round(latitudinal_width(45))),
+    ?assertEqual(111412, round(latitudinal_width(60))),
+    ?assertEqual(111694, round(latitudinal_width(90))).
 
 -endif.
