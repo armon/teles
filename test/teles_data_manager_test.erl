@@ -124,8 +124,8 @@ query_test_() ->
     fun(_) ->
         ?_test(begin
             P = rstar_geometry:point2d(47, 120, undefined),
-            Res = teles_data_manager:query_around(test, P, 0.4),
-            ?assertEqual({ok, [bar, foo]}, Res)
+            Res = teles_data_manager:query_around(test, P, 20000),
+            ?assertEqual({ok, [foo]}, Res)
         end)
     end,
     fun(_) ->
