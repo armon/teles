@@ -4,7 +4,7 @@
 -include_lib("rstar/include/rstar.hrl").
 
 setup() ->
-    case teles_data_manager_sup:start_link(1) of
+    case teles_data_manager_sup:start_link(2) of
         {ok, Pid} -> Pid;
         {error, {already_started, Pid}} -> Pid
     end.
@@ -18,6 +18,12 @@ list_test_() ->
     [fun(_) ->
         ?_test(begin
             ?assertEqual([], teles_data_manager:list_spaces())
+        end)
+    end,
+    fun(_) ->
+        ?_test(begin
+            ?assertEqual(ok, teles_data_manager:create_space(test)),
+            ?assertEqual([test], teles_data_manager:list_spaces())
         end)
     end
     ]}.
