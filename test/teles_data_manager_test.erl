@@ -9,20 +9,20 @@ setup() ->
         {error, {already_started, Pid}} -> Pid
     end.
 
-cleanup(Pid) -> unlink(Pid), exit(Pid, kill).
+cleanup(Pid) -> unlink(Pid), exit(Pid, kill), timer:sleep(1).
 
 
 get_agents_test_() ->
-    {setup,
+    {foreach,
     fun setup/0,
     fun cleanup/1,
-    [fun() ->
+    [fun(_) ->
         ?_test(begin
             Pids = teles_data_manager:get_agents(test),
             ?assertEqual(2, length(Pids))
         end)
     end,
-    fun() ->
+    fun(_) ->
         ?_test(begin
             [A, B] = teles_data_manager:get_agents(test),
             ?assertEqual(A, teles_data_manager:get_agent(test)),
@@ -34,21 +34,21 @@ get_agents_test_() ->
 
 
 list_test_() ->
-    {setup,
+    {foreach,
     fun setup/0,
     fun cleanup/1,
-    [fun() ->
+    [fun(_) ->
         ?_test(begin
             ?assertEqual([], teles_data_manager:list_spaces())
         end)
     end,
-    fun() ->
+    fun(_) ->
         ?_test(begin
             ?assertEqual(ok, teles_data_manager:create_space(test)),
             ?assertEqual([test], teles_data_manager:list_spaces())
         end)
     end,
-    fun() ->
+    fun(_) ->
         ?_test(begin
             ?assertEqual(ok, teles_data_manager:create_space(test)),
             ?assertEqual(ok, teles_data_manager:delete_space(test)),
@@ -59,26 +59,26 @@ list_test_() ->
 
 
 object_test_() ->
-    {setup,
+    {foreach,
     fun setup/0,
     fun cleanup/1,
-    [fun() ->
+    [fun(_) ->
         ?_test(begin
-            [] = teles_data_manager:list_objects(test),
+            {ok, []} = teles_data_manager:list_objects(test),
             ok = teles_data_manager:add_object(test, foo, bar),
-            [foo] = teles_data_manager:list_objects(test),
-            ok = teles_data_manager:delete_object(test, foo),
-            [] = teles_data_manager:list_objects(test)
+            {ok, [foo]} = teles_data_manager:list_objects(test),
+            ok = teles_data_manager:delete(test, foo),
+            {ok, []} = teles_data_manager:list_objects(test)
         end)
     end
     ]}.
 
 
 association_test_() ->
-    {setup,
+    {foreach,
     fun setup/0,
     fun cleanup/1,
-    [fun() ->
+    [fun(_) ->
         ?_test(begin
             ok = teles_data_manager:add_object(test, foo, bar),
             {ok, foo, bar, []} = teles_data_manager:list_associations(test, foo),
@@ -93,6 +93,46 @@ association_test_() ->
 
             ok = teles_data_manager:disassociate(test, foo, GID),
             {ok, foo, bar, []} = teles_data_manager:list_associations(test, foo)
+        end)
+    end
+    ]}.
+
+
+query_test_() ->
+    {foreach,
+    fun() ->
+        Res = setup(),
+        ok = teles_data_manager:add_object(test, foo, bar),
+        ok = teles_data_manager:associate(test, foo, 47.1, 120.2, a),
+
+        ok = teles_data_manager:add_object(test, bar, bar),
+        ok = teles_data_manager:associate(test, bar, 47.2, 120.3, a),
+
+        ok = teles_data_manager:add_object(test, baz, bar),
+        ok = teles_data_manager:associate(test, baz, 47.2, 120.4, a),
+        Res
+    end,
+    fun cleanup/1,
+    [fun(_) ->
+        ?_test(begin
+            P = rstar_geometry:point2d(47, 120, undefined),
+            Res = teles_data_manager:query_nearest(test, P, 3),
+            ?assertEqual({ok, [bar, baz, foo]}, Res)
+        end)
+    end,
+    fun(_) ->
+        ?_test(begin
+            P = rstar_geometry:point2d(47, 120, undefined),
+            Res = teles_data_manager:query_around(test, P, 0.4),
+            ?assertEqual({ok, [bar, foo]}, Res)
+        end)
+    end,
+    fun(_) ->
+        ?_test(begin
+            Box = #geometry{dimensions=2,
+                        mbr=[{47,48}, {120,121}]},
+            Res = teles_data_manager:query_within(test, Box),
+            ?assertEqual({ok, [bar, baz, foo]}, Res)
         end)
     end
     ]}.
