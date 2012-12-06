@@ -24,7 +24,7 @@
 -define(BAD_LATLNG, <<"Client Error: Bad lat/lng format\n">>).
 -define(BAD_ARGS, <<"Client Error: Bad arguments\n">>).
 -define(SPACE_NOT_FOUND, <<"Space does not exist\n">>).
-
+-define(SPACE_NEEDED(State), gen_tcp:send(State#state.socket, <<"Client Error: Must use a namespace\n">>), State).
 
 start_link(Socket) ->
     gen_server:start_link(?MODULE, [Socket], []).
@@ -144,12 +144,8 @@ process_cmd(State=#state{socket=Sock}, <<"in ", Rest/binary>>) ->
     end;
 
 
-% All other commands require a 'Space' to be used
-process_cmd(State=#state{socket=Sock, space=undefined}, _) ->
-    gen_tcp:send(Sock, <<"Client Error: Must use a namespace\n">>), State;
-
-
 % Adds a new object
+process_cmd(State=#state{space=undefined}, <<"add object ", _OID/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"add object ", OID/binary>>) ->
     % Don't support values for now
     ok = teles_data_manager:add_object(Sp, OID, undefined),
@@ -157,6 +153,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"add object ", OID/binary>>) 
 
 
 % Deletes an object
+process_cmd(State=#state{space=undefined}, <<"delete object ", _OID/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"delete object ", OID/binary>>) ->
     case teles_data_manager:delete(Sp, OID) of
         ok -> gen_tcp:send(Sock, ?DONE);
@@ -166,12 +163,14 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"delete object ", OID/binary>
 
 
 % Lists the existing objects
+process_cmd(State=#state{space=undefined}, <<"list objects">>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"list objects">>) ->
     {ok, Objects} = teles_data_manager:list_objects(Sp),
     send_list(Sock, Objects), State;
 
 
 % Associates an object with a new point
+process_cmd(State=#state{space=undefined}, <<"associate point ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/binary>>) ->
     case binary:split(Rest, [<<" ">>], [global]) of
         [LatB, LngB, <<"with">>, Obj] ->
@@ -197,6 +196,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/bina
 
 
 % Lists the associations of an object
+process_cmd(State=#state{space=undefined}, <<"list associations with ", _Obj/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"list associations with ", Obj/binary>>) ->
     case teles_data_manager:list_associations(Sp, Obj) of
         not_found -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
@@ -208,6 +208,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"list associations with ", Ob
 
 
 % Disassociates a GID with an Object
+process_cmd(State=#state{space=undefined}, <<"disassociate ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate ", Rest/binary>>) ->
     case binary:split(Rest, [<<" ">>], [global]) of
         [GIDS, <<"with">>, Obj] ->
@@ -229,6 +230,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate ", Rest/binary>
 
 
 % Queries within a search box
+process_cmd(State=#state{space=undefined}, <<"query within ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>>) ->
     case binary:split(Rest, [<<" ">>], [global]) of
         [MinLatS, MaxLatS, MinLngS, MaxLngS] ->
@@ -254,6 +256,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>
 
 
 % Query the nearest points
+process_cmd(State=#state{space=undefined}, <<"query nearest ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary>>) ->
     case binary:split(Rest, [<<" ">>], [global]) of
         [K_str, <<"to">>, LatS, LngS] ->
@@ -280,6 +283,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary
 
 
 % Query around a given point
+process_cmd(State=#state{space=undefined}, <<"query around ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"query around ", Rest/binary>>) ->
     case binary:split(Rest, [<<" ">>], [global]) of
         [LatS, LngS, <<"for">>, DistS] ->
