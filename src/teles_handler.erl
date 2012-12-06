@@ -375,7 +375,8 @@ dist_to_float(Dist) ->
                 "km" -> DistV * 1000.0;
                 "mi" -> DistV * 1609.0;
                 "y"  -> DistV * 0.9144;
-                "ft" -> DistV * 0.3048
+                "ft" -> DistV * 0.3048;
+                _ -> error
             end
     end.
 
