@@ -232,6 +232,51 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, add_object,
+                      [<<"test">>, <<"foo">>, undefined], {return, ok}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Done\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test add object foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, delete,
+                      [<<"test">>, <<"foo">>], {return, ok}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Done\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test delete object foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, delete,
+                      [<<"test">>, <<"foo">>], {return, {error, not_found, []}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Object not found\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test delete object foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
     end
     ]}.
 
