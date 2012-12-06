@@ -277,6 +277,92 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_objects,
+                      [<<"test">>], {return, {ok, [<<"bar">>]}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [[<<"bar">>, <<"\n">>]], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"in test list objects">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, associate,
+                      [<<"test">>, <<"foo">>, 40.5, -120.5, undefined],
+                      {return, ok}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Done\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test associate point 40.5 -120.5 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, associate,
+                      [<<"test">>, <<"foo">>, 40.5, -120.5, undefined],
+                      {return, {error, not_found, []}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Object not found\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test associate point 40.5 -120.5 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+                em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test associate point crap -120.5 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+                em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test associate point 40.5 crap.5 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+                em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad arguments\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test associate point 40.5 -120.5">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
     end
     ]}.
 
