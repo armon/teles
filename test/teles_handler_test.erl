@@ -35,9 +35,9 @@ process_buffer_test_() ->
         ?_test(begin
             M = em:new(),
             em:strict(M, teles_data_manager, list_spaces,
-                      [], {return, []}),
+                      [], {return, ["tubez"]}),
             em:strict(M, gen_tcp, send,
-                      [sock, [<<"START\n">>, [], <<"END\n">>]]),
+                      [sock, [<<"START\n">>, [["tubez", <<"\n">>]], <<"END\n">>]]),
             ok = em:replay(M),
 
             Line = <<"list spaces\n">>,
@@ -47,7 +47,44 @@ process_buffer_test_() ->
 
             em:verify(M)
         end)
-    end
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_spaces,
+                      [], {return, []}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [], <<"END\n">>]]),
+            ok = em:replay(M),
 
+            Line = <<"list spaces\nafter">>,
+            Blank = <<"after">>,
+            Expect = S#state{buffer=Blank},
+            ?assertEqual(Expect, teles_handler:process_buffer(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_spaces,
+                      [], {return, []}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [], <<"END\n">>]]),
+            em:strict(M, teles_data_manager, list_spaces,
+                      [], {return, []}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"list spaces\r\nlist spaces\nafter">>,
+            Blank = <<"after">>,
+            Expect = S#state{buffer=Blank},
+            ?assertEqual(Expect, teles_handler:process_buffer(S, Line)),
+
+            em:verify(M)
+        end)
+    end
     ]}.
 
