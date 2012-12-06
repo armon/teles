@@ -363,6 +363,28 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            G = rstar_geometry:point2d(40.5, 120.5, undefined),
+            GID = erlang:phash2(G, 4294967295),
+            G1 = G#geometry{value=GID},
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_associations,
+                      [<<"test">>, <<"foo">>],
+                      {return, {ok, <<"foo">>, undefined, [{GID, undefined, G1}]}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>,
+                              [[[<<"GID=">>,integer_to_list(GID),<<" ">>,
+                                 <<"lat=">>,["40", ".", "5000"], <<" ">>, <<"lng=">>,["120", ".", "5000"]], <<"\n">>]],
+                        <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"in test list associations with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
     end
     ]}.
 
