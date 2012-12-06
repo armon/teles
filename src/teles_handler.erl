@@ -429,3 +429,47 @@ format_float(Val) ->
     % Convert to iolist
     [integer_to_list(WholePart), ".", integer_to_list(SubPart)].
 
+
+
+-ifdef(TEST).
+
+to_float_test() ->
+    ?assertEqual(error, to_float(<<"tubez0">>)),
+    ?assertEqual(1.0, to_float(<<"1.0">>)),
+    ?assertEqual(1.0, to_float(<<"1">>)),
+    ?assertEqual(-1.0, to_float(<<"-1">>)).
+
+to_int_test() ->
+    ?assertEqual(error, to_integer(<<"junk">>)),
+    ?assertEqual(1, to_integer(<<"1">>)),
+    ?assertEqual(-1, to_integer(<<"-1">>)).
+
+invalid_lat_test() ->
+    ?assertEqual(false, invalid_lat(45.0)),
+    ?assertEqual(false, invalid_lat(-45.0)),
+    ?assertEqual(true, invalid_lat(-90.01)),
+    ?assertEqual(true, invalid_lat(0)),
+    ?assertEqual(true, invalid_lat(tubez)),
+    ?assertEqual(true, invalid_lat(90.01)).
+
+invalid_lng_test() ->
+    ?assertEqual(false, invalid_lng(45.0)),
+    ?assertEqual(false, invalid_lng(-45.0)),
+    ?assertEqual(true, invalid_lng(-1800.01)),
+    ?assertEqual(true, invalid_lng(0)),
+    ?assertEqual(true, invalid_lng(tubez)),
+    ?assertEqual(true, invalid_lng(180.01)).
+
+format_float_test() ->
+    ?assertEqual(["-123", ".", "1234"], format_float(-123.123456)),
+    ?assertEqual(["123", ".", "1234"], format_float(123.123456)).
+
+distance_test() ->
+    ?assertEqual(1000.0, dist_to_float(<<"1000">>)),
+    ?assertEqual(1000.0, dist_to_float(<<"1000m">>)),
+    ?assertEqual(1000.0, dist_to_float(<<"1km">>)),
+    ?assertEqual(1609.0 * 2, dist_to_float(<<"2mi">>)),
+    ?assertEqual(9144.0, dist_to_float(<<"10000y">>)),
+    ?assertEqual(3048.0, dist_to_float(<<"10000ft">>)).
+
+-endif.
