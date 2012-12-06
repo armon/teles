@@ -154,10 +154,11 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/bina
             % Convert lat and lng to floats
             Lat = to_float(LatB),
             Lng = to_float(LngB),
+            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
 
             % Check for proper types
             if
-                not is_float(Lat) or not is_float(Lng) ->
+                InvalidLatLng ->
                     gen_tcp:send(Sock, ?BAD_LATLNG);
 
                 true ->
