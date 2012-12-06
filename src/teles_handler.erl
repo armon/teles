@@ -245,6 +245,9 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>
                 InvalidLatLng ->
                     gen_tcp:send(Sock, ?BAD_LATLNG);
 
+                MinLat > MaxLat orelse MinLng > MaxLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
                 true ->
                     Box = #geometry{dimensions=2, mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]},
                     {ok, Results} = teles_data_manager:query_within(Sp, Box),
@@ -269,7 +272,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary
                 InvalidLatLng ->
                     gen_tcp:send(Sock, ?BAD_LATLNG);
 
-                not is_integer(K) or K < 1 ->
+                not is_integer(K) orelse K < 1 ->
                     gen_tcp:send(Sock, <<"Client Error: Bad K format\n">>);
 
                 true ->
@@ -392,7 +395,11 @@ dist_to_float(Dist) ->
     % Convert the distance to a float
     DistV = try list_to_float(DistDig)
     catch
-        _ -> error
+        error:_ ->
+            try list_to_integer(DistDig)
+            catch
+                error:_ -> error
+            end
     end,
 
     % Switch on the units
