@@ -191,7 +191,7 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
-    end<
+    end,
     fun(S) ->
         ?_test(begin
             M = em:new(),
@@ -206,7 +206,19 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
-    end
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Must use a namespace\n">>]),
+            ok = em:replay(M),
 
+            Line = <<"list objects">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end
     ]}.
 

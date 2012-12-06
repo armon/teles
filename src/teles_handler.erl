@@ -146,7 +146,7 @@ process_cmd(State=#state{socket=Sock}, <<"in ", Rest/binary>>) ->
 
 % All other commands require a 'Space' to be used
 process_cmd(State=#state{socket=Sock, space=undefined}, _) ->
-    gen_tcp:send(Sock, <<"Client Error: Connection must use a namespace. Issue a 'use space' command first.\n">>), State;
+    gen_tcp:send(Sock, <<"Client Error: Must use a namespace\n">>), State;
 
 
 % Adds a new object
