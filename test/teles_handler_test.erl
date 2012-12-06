@@ -96,6 +96,19 @@ process_cmd_test_() ->
     [fun(S) ->
         ?_test(begin
             M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Unrecognized command\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"tubez">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
             em:strict(M, teles_data_manager, list_spaces,
                       [], {return, [<<"tubez">>]}),
             em:strict(M, gen_tcp, send,
