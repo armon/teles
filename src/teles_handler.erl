@@ -319,8 +319,8 @@ to_integer(Bin) ->
 association_line(ID, Geo) ->
     #geometry{mbr=[{Lat, _}, {Lng, _}]} = Geo,
     IDs = integer_to_list(ID),
-    LatS = float_to_list(Lat),
-    LngS = float_to_list(Lng),
+    LatS = format_float(Lat),
+    LngS = format_float(Lng),
     [<<"GID=">>, IDs, ?SPACE, <<"lat=">>, LatS, ?SPACE, <<"lng=">>, LngS].
 
 
@@ -348,8 +348,12 @@ dist_to_float(Dist) ->
     DistL = binary_to_list(Dist),
 
     % Partition into the digits and units
+    % 45 is -
+    % 46 is .
+    % 48 is 0
+    % 57 is 9
     {DistDig, Unit} = lists:partition(fun(Char) ->
-        Char >= "0" orelse Char =< "9" orelse Char == "-" orelse Char == "."
+        ((Char >= 48) and (Char =< 57)) orelse Char == 45 orelse Char == 46
     end, DistL),
 
     % Convert the distance to a float
@@ -371,4 +375,16 @@ dist_to_float(Dist) ->
                 "ft" -> DistV * 0.3048
             end
     end.
+
+
+% Gives a nice base 10 representation of a float
+format_float(Val) ->
+    % Get the whole number part
+    WholePart = trunc(Val),
+
+    % Get the sub part with milliseconds
+    SubPart = trunc(Val * 1000) rem 1000,
+
+    % Convert to iolist
+    [integer_to_list(WholePart), ".", integer_to_list(SubPart)].
 
