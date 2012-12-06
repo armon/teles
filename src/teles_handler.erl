@@ -348,13 +348,15 @@ dist_to_float(Dist) ->
     DistL = binary_to_list(Dist),
 
     % Partition into the digits and units
-    % 45 is -
-    % 46 is .
-    % 48 is 0
-    % 57 is 9
-    {DistDig, Unit} = lists:partition(fun(Char) ->
-        ((Char >= 48) and (Char =< 57)) orelse Char == 45 orelse Char == 46
+    {DistDigR, Unit} = lists:partition(fun(Char) ->
+        ((Char >= $0) and (Char =< $9)) orelse Char == $- orelse Char == $.
     end, DistL),
+
+    % Ensure '.' is in DistDig, or add .0
+    DistDig = case lists:member($., DistDigR) of
+        true -> DistDigR;
+        _ -> DistDigR ++ [$., $0]
+    end,
 
     % Convert the distance to a float
     DistV = try list_to_float(DistDig)
@@ -382,8 +384,8 @@ format_float(Val) ->
     % Get the whole number part
     WholePart = trunc(Val),
 
-    % Get the sub part with milliseconds
-    SubPart = trunc(Val * 1000) rem 1000,
+    % Get the sub part
+    SubPart = abs(trunc(Val * 10000)) rem 10000,
 
     % Convert to iolist
     [integer_to_list(WholePart), ".", integer_to_list(SubPart)].
