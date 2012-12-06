@@ -10,6 +10,11 @@
 
 -include_lib("rstar/include/rstar.hrl").
 
+-ifdef(TEST).
+-compile(export_all).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -define(NEWLINE, <<"\n">>).
 -define(DONE, <<"Done\n">>).
 -define(START, <<"START\n">>).
