@@ -303,7 +303,7 @@ send_list(Sock, List) ->
 to_float(Bin) ->
     try list_to_float(binary_to_list(Bin))
     catch
-        _ -> error
+        error:_ -> error
     end.
 
 
@@ -311,7 +311,7 @@ to_float(Bin) ->
 to_integer(Bin) ->
     try list_to_integer(binary_to_list(Bin))
     catch
-        _ -> error
+        error:_ -> error
     end.
 
 
