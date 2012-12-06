@@ -17,6 +17,8 @@
 -define(SPACE, <<" ">>).
 -define(OBJ_NOT_FOUND, <<"Object not found\n">>).
 -define(BAD_LATLNG, <<"Client Error: Bad lat/lng format\n">>).
+-define(BAD_ARGS, <<"Client Error: Bad arguments\n">>).
+-define(SPACE_NOT_FOUND, <<"Space does not exist\n">>).
 
 
 start_link(Socket) ->
@@ -41,7 +43,6 @@ handle_cast(start, S=#state{socket=Socket}) ->
 % Store new data in the buffer
 handle_info({tcp, _, Data}, State=#state{buffer=Buf}) ->
     NewBuf = iolist_to_binary([Buf, Data]),
-    lager:info("Got: ~p~n", [Data]),
     NS = process_buffer(State, NewBuf),
     {noreply, NS};
 
@@ -85,7 +86,7 @@ process_cmd(State=#state{socket=Sock}, <<"use space ", Space/binary>>) ->
             gen_tcp:send(Sock, [<<"Switched to space: ">>, Space, ?NEWLINE]),
             State#state{space=Space};
         false ->
-            gen_tcp:send(Sock, <<"Space does not exist\n">>),
+            gen_tcp:send(Sock, ?SPACE_NOT_FOUND),
             State
     end;
 
@@ -100,7 +101,7 @@ process_cmd(State=#state{socket=Sock}, <<"create space ", Space/binary>>) ->
 process_cmd(State=#state{socket=Sock, space=Sp}, <<"delete space ", Space/binary>>) ->
     case teles_data_manager:delete_space(Space) of
         not_found ->
-            gen_tcp:send(Sock, <<"Space does not exist\n">>),
+            gen_tcp:send(Sock, ?SPACE_NOT_FOUND),
             State;
 
         ok ->
@@ -167,7 +168,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/bina
                         {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND)
                     end
             end;
-        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
     end,
     State;
 
@@ -199,7 +200,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate ", Rest/binary>
                         {error, not_associated, _} -> gen_tcp:send(Sock, <<"GID not associated\n">>)
                     end
             end;
-        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
     end,
     State;
 
@@ -224,7 +225,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>
                     {ok, Results} = teles_data_manager:query_within(Sp, Box),
                     send_list(Sock, Results)
             end;
-        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
     end,
     State;
 
@@ -250,7 +251,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary
                     {ok, Results} = teles_data_manager:query_nearest(Sp, Point, K),
                     send_list(Sock, Results)
             end;
-        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
     end,
     State;
 
@@ -276,7 +277,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"query around ", Rest/binary>
                     {ok, Results} = teles_data_manager:query_around(Sp, Point, Dist),
                     send_list(Sock, Results)
             end;
-        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
     end,
     State;
 
