@@ -191,6 +191,22 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
+    end<
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_objects,
+                      [<<"test">>], {return, {ok, [<<"foobar">>]}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [[<<"foobar">>, <<"\n">>]], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"in test list objects">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
     end
+
     ]}.
 
