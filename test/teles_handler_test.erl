@@ -385,6 +385,232 @@ process_cmd_test_() ->
 
             em:verify(M)
         end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, disassociate,
+                      [<<"test">>, <<"foo">>, 1234],
+                      {return, ok}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Done\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test disassociate 1234 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, disassociate,
+                      [<<"test">>, <<"foo">>, 1234],
+                      {return, {error, not_found, []}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Object not found\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test disassociate 1234 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, disassociate,
+                      [<<"test">>, <<"foo">>, 1234],
+                      {return, {error, not_associated, []}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"GID not associated\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test disassociate 1234 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad GID format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test disassociate tubez1234 with foo">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            Box = #geometry{dimensions=2, mbr=[{0.0, 20.0}, {-10.0, 30.0}]},
+            M = em:new(),
+            em:strict(M, teles_data_manager, query_within,
+                      [<<"test">>, Box],
+                      {return, {ok, [<<"foo">>]}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [[<<"foo">>, <<"\n">>]], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"in test query within 0 20 -10 30">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad arguments\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test query within 0 20 -10">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test query within 0 20 -10 crap">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            Line1 = <<"in test query within 0 20 200 crap">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line1)),
+
+            Line2 = <<"in test query within -100 20 -10 30">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line2)),
+
+            Line3 = <<"in test query within 0 crap -10 30">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line3)),
+
+            Line4 = <<"in test query within 40 10 30 20">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line4)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            Point = rstar_geometry:point2d(40.5, 120.5, undefined),
+            M = em:new(),
+            em:strict(M, teles_data_manager, query_nearest,
+                      [<<"test">>, Point, 5],
+                      {return, {ok, [<<"foo">>]}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [[<<"foo">>, <<"\n">>]], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"in test query nearest 5 to 40.5 120.5">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad K format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad K format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test query nearest 0 to 40.5 120.5">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            Line2 = <<"in test query nearest crap to 40.5 120.5">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line2)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test query nearest 5 to -100 120.5">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            Line2 = <<"in test query nearest 5 to 40.5 crap">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line2)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            Point = rstar_geometry:point2d(40.5, 120.5, undefined),
+            M = em:new(),
+            em:strict(M, teles_data_manager, query_around,
+                      [<<"test">>, Point, 1000.0],
+                      {return, {ok, [<<"foo">>]}}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [[<<"foo">>, <<"\n">>]], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"in test query around 40.5 120.5 for 1000m">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad lat/lng format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test query around -100 120.5 for 1000">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            Line2 = <<"in test query around 40.5 crap for 1000">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line2)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Client Error: Bad distance format\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"in test query around -50 120.5 for 1000xyz">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
     end
+
     ]}.
 
