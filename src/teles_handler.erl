@@ -8,11 +8,15 @@
             buffer=[]
         }).
 
+-include_lib("rstar/include/rstar.hrl").
+
 -define(NEWLINE, <<"\n">>).
 -define(DONE, <<"Done\n">>).
 -define(START, <<"START\n">>).
 -define(END, <<"END\n">>).
+-define(SPACE, <<" ">>).
 -define(OBJ_NOT_FOUND, <<"Object not found\n">>).
+-define(BAD_LATLNG, <<"Client Error: Bad lat/lng format\n">>).
 
 
 start_link(Socket) ->
@@ -154,7 +158,7 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/bina
             % Check for proper types
             if
                 not is_float(Lat) or not is_float(Lng) ->
-                    gen_tcp:send(Sock, <<"Client Error: Bad Lat/Lng format\n">>);
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
 
                 true ->
                     case teles_data_manager:associate(Sp, Obj, Lat, Lng, undefined) of
@@ -167,20 +171,113 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/bina
     State;
 
 
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"list associations with ", _Rest/binary>>) ->
-    gen_tcp:send(Sock, <<"Server Error: Unsupported command\n">>), State;
+% Lists the associations of an object
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"list associations with ", Obj/binary>>) ->
+    case teles_data_manager:list_associations(Sp, Obj) of
+        not_found -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
+        {ok, Obj, _Val, Geos} ->
+            Associations = [association_line(ID, Geo) ||{ID, _, Geo} <- Geos],
+            send_list(Sock, Associations)
+    end,
+    State;
 
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate point ", _Rest/binary>>) ->
-    gen_tcp:send(Sock, <<"Server Error: Unsupported command\n">>), State;
 
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", _Rest/binary>>) ->
-    gen_tcp:send(Sock, <<"Server Error: Unsupported command\n">>), State;
+% Disassociates a GID with an Object
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [GIDS, <<"with">>, Obj] ->
+            GID = to_integer(GIDS),
+            if
+                not is_integer(GID) ->
+                    gen_tcp:send(Sock, <<"Client Error: Bad GID format\n">>);
 
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"query around ", _Rest/binary>>) ->
-    gen_tcp:send(Sock, <<"Server Error: Unsupported command\n">>), State;
+                true ->
+                    case teles_data_manager:disassociate(Sp, Obj, GID) of
+                        ok -> gen_tcp:send(Sock, ?DONE);
+                        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
+                        {error, not_associated, _} -> gen_tcp:send(Sock, <<"GID not associated\n">>)
+                    end
+            end;
+        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+    end,
+    State;
 
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", _Rest/binary>>) ->
-    gen_tcp:send(Sock, <<"Server Error: Unsupported command\n">>), State;
+
+% Queries within a search box
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [MinLatS, MaxLatS, MinLngS, MaxLngS] ->
+            MinLat = to_float(MinLatS),
+            MaxLat = to_float(MaxLatS),
+            MinLng = to_float(MinLngS),
+            MaxLng = to_float(MaxLngS),
+            InvalidLatLng = invalid_lat(MinLat) orelse invalid_lat(MaxLat)
+                            orelse invalid_lng(MinLng) orelse invalid_lng(MaxLng),
+
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                true ->
+                    Box = #geometry{dimensions=2, mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]},
+                    {ok, Results} = teles_data_manager:query_within(Sp, Box),
+                    send_list(Sock, Results)
+            end;
+        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+    end,
+    State;
+
+
+% Query the nearest points
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [K_str, <<"to">>, LatS, LngS] ->
+            K = to_integer(K_str),
+            Lat = to_float(LatS),
+            Lng = to_float(LngS),
+            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
+
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                not is_integer(K) or K < 1 ->
+                    gen_tcp:send(Sock, <<"Client Error: Bad K format\n">>);
+
+                true ->
+                    Point = rstar_geometry:point2d(Lat, Lng, undefined),
+                    {ok, Results} = teles_data_manager:query_nearest(Sp, Point, K),
+                    send_list(Sock, Results)
+            end;
+        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+    end,
+    State;
+
+
+% Query around a given point
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"query around ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [LatS, LngS, <<"for">>, DistS] ->
+            Lat = to_float(LatS),
+            Lng = to_float(LngS),
+            Dist = dist_to_float(DistS),
+            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
+
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                not is_float(Dist) ->
+                    gen_tcp:send(Sock, <<"Client Error: Bad distance format\n">>);
+
+                true ->
+                    Point = rstar_geometry:point2d(Lat, Lng, undefined),
+                    {ok, Results} = teles_data_manager:query_around(Sp, Point, Dist),
+                    send_list(Sock, Results)
+            end;
+        _ -> gen_tcp:send(Sock, <<"Client Error: Bad arguments\n">>)
+    end,
+    State;
 
 
 % Catch all for an undefined command
@@ -205,5 +302,72 @@ to_float(Bin) ->
     try list_to_float(binary_to_list(Bin))
     catch
         _ -> error
+    end.
+
+
+-spec to_integer(binary()) -> error | integer().
+to_integer(Bin) ->
+    try list_to_integer(binary_to_list(Bin))
+    catch
+        _ -> error
+    end.
+
+
+% Returns a single line of an assoication given
+% a GID and Geo objet
+association_line(ID, Geo) ->
+    #geometry{mbr=[{Lat, _}, {Lng, _}]} = Geo,
+    IDs = integer_to_list(ID),
+    LatS = float_to_list(Lat),
+    LngS = float_to_list(Lng),
+    [<<"GID=">>, IDs, ?SPACE, <<"lat=">>, LatS, ?SPACE, <<"lng=">>, LngS].
+
+
+% Checks if a latitude is invalid
+invalid_lat(Lat) ->
+    if
+        not is_float(Lat) -> true;
+        Lat < -90 orelse Lat > 90 -> true;
+        true -> false
+    end.
+
+
+% Checks if a longitude is invalid
+invalid_lng(Lng) ->
+    if
+        not is_float(Lng) -> true;
+        Lng < -180 orelse Lng > 180 -> true;
+        true -> false
+    end.
+
+
+% Tries to convert a distance to meters
+dist_to_float(Dist) ->
+    % Convert to a list
+    DistL = binary_to_list(Dist),
+
+    % Partition into the digits and units
+    {DistDig, Unit} = lists:partition(fun(Char) ->
+        Char >= "0" orelse Char =< "9" orelse Char == "-" orelse Char == "."
+    end, DistL),
+
+    % Convert the distance to a float
+    DistV = try list_to_float(DistDig)
+    catch
+        _ -> error
+    end,
+
+    % Switch on the units
+    case DistV of
+        error -> error;
+        _ ->
+            case Unit of
+                [] -> DistV;
+                "m" -> DistV;
+                "km" -> DistV * 1000.0;
+                "mi" -> DistV * 1609.0;
+                "y"  -> DistV * 0.9144;
+                "ft" -> DistV * 0.3048
+            end
     end.
 
