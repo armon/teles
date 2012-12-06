@@ -121,6 +121,24 @@ process_cmd(State=#state{socket=Sock}, <<"list spaces">>) ->
     send_list(Sock, Spaces), State;
 
 
+% Executes a different command in a space
+process_cmd(State=#state{socket=Sock}, <<"in ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>]) of
+        [Space, Cmd] ->
+            % Store the current space
+            CurSpace = State#state.space,
+
+            % Invoke the command in the new space
+            S1 = State#state{space=Space},
+            S2 = process_cmd(S1, Cmd),
+
+            % Restore the state
+            S2#state{space=CurSpace};
+
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS), State
+    end;
+
+
 % All other commands require a 'Space' to be used
 process_cmd(State=#state{socket=Sock, space=undefined}, _) ->
     gen_tcp:send(Sock, <<"Client Error: Connection must use a namespace. Issue a 'use space' command first.\n">>), State;
