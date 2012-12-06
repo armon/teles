@@ -88,3 +88,109 @@ process_buffer_test_() ->
     end
     ]}.
 
+
+process_cmd_test_() ->
+    {foreach,
+    fun setup/0,
+    fun cleanup/1,
+    [fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_spaces,
+                      [], {return, [<<"tubez">>]}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"Switched to space: ">>, <<"tubez">>, <<"\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"use space tubez">>,
+            T = <<"tubez">>,
+            Expect = S#state{space=T},
+            ?assertEqual(Expect, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_spaces,
+                      [], {return, [<<"tubez">>]}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Space does not exist\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"use space bar">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, create_space,
+                      [<<"foo">>], {return, ok}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Done\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"create space foo">>,
+            T = <<"foo">>,
+            Expect = S#state{space=T},
+            ?assertEqual(Expect, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, delete_space,
+                      [<<"foo">>], {return, ok}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Done\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"delete space foo">>,
+            T = <<"foo">>,
+            In = S#state{space=T},
+            Expect = S#state{space=undefined},
+            ?assertEqual(Expect, teles_handler:process_cmd(In, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, delete_space,
+                      [<<"foo">>], {return, not_found}),
+            em:strict(M, gen_tcp, send,
+                      [sock, <<"Space does not exist\n">>]),
+            ok = em:replay(M),
+
+            Line = <<"delete space foo">>,
+            T = <<"foo">>,
+            In = S#state{space=T},
+            ?assertEqual(In, teles_handler:process_cmd(In, Line)),
+
+            em:verify(M)
+        end)
+    end,
+    fun(S) ->
+        ?_test(begin
+            M = em:new(),
+            em:strict(M, teles_data_manager, list_spaces,
+                      [], {return, [<<"test">>]}),
+            em:strict(M, gen_tcp, send,
+                      [sock, [<<"START\n">>, [[<<"test">>, <<"\n">>]], <<"END\n">>]]),
+            ok = em:replay(M),
+
+            Line = <<"list spaces">>,
+            ?assertEqual(S, teles_handler:process_cmd(S, Line)),
+
+            em:verify(M)
+        end)
+    end
+    ]}.
+
