@@ -94,6 +94,11 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, normal}, State) ->
     NS = State#state{pids=dict:erase(Pid, Pids)},
     {noreply, NS};
 
+
+% Handle the shutdown case by ignoring it
+handle_info({'DOWN', _MonitorRef, _Type, _Pid, shutdown}, State) ->
+    {noreply, State};
+
 % Trigger a repair if we lose an agent
 handle_info({'DOWN', _MonitorRef, _Type, Pid, Info}, State) ->
     NS = case dict:find(Pid, State#state.pids) of
