@@ -83,6 +83,189 @@ process_buffer(State, Buffer) ->
     end.
 
 
+% Executes a different command in a space
+process_cmd(State=#state{socket=Sock}, <<"in ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>]) of
+        [Space, Cmd] ->
+            % Invoke the command in the new space
+            S1 = State#state{space=Space},
+            process_cmd(S1, Cmd),
+
+            % Restore the state
+            State;
+
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS), State
+    end;
+
+
+% Query around a given point
+process_cmd(State=#state{space=undefined}, <<"query around ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"query around ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [LatS, LngS, <<"for">>, DistS] ->
+            Lat = to_float(LatS),
+            Lng = to_float(LngS),
+            Dist = dist_to_float(DistS),
+            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
+
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                not is_float(Dist) ->
+                    gen_tcp:send(Sock, <<"Client Error: Bad distance format\n">>);
+
+                true ->
+                    Point = rstar_geometry:point2d(Lat, Lng, undefined),
+                    {ok, Results} = teles_data_manager:query_around(Sp, Point, Dist),
+                    send_list(Sock, Results)
+            end;
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
+    end,
+    State;
+
+
+% Query the nearest points
+process_cmd(State=#state{space=undefined}, <<"query nearest ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [K_str, <<"to">>, LatS, LngS] ->
+            K = to_integer(K_str),
+            Lat = to_float(LatS),
+            Lng = to_float(LngS),
+            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
+
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                not is_integer(K) orelse K < 1 ->
+                    gen_tcp:send(Sock, <<"Client Error: Bad K format\n">>);
+
+                true ->
+                    Point = rstar_geometry:point2d(Lat, Lng, undefined),
+                    {ok, Results} = teles_data_manager:query_nearest(Sp, Point, K),
+                    send_list(Sock, Results)
+            end;
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
+    end,
+    State;
+
+
+% Queries within a search box
+process_cmd(State=#state{space=undefined}, <<"query within ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [MinLatS, MaxLatS, MinLngS, MaxLngS] ->
+            MinLat = to_float(MinLatS),
+            MaxLat = to_float(MaxLatS),
+            MinLng = to_float(MinLngS),
+            MaxLng = to_float(MaxLngS),
+            InvalidLatLng = invalid_lat(MinLat) orelse invalid_lat(MaxLat)
+                            orelse invalid_lng(MinLng) orelse invalid_lng(MaxLng),
+
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                MinLat > MaxLat orelse MinLng > MaxLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                true ->
+                    Box = #geometry{dimensions=2, mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]},
+                    {ok, Results} = teles_data_manager:query_within(Sp, Box),
+                    send_list(Sock, Results)
+            end;
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
+    end,
+    State;
+
+
+% Adds a new object
+process_cmd(State=#state{space=undefined}, <<"add object ", _OID/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"add object ", OID/binary>>) ->
+    % Don't support values for now
+    ok = teles_data_manager:add_object(Sp, OID, undefined),
+    gen_tcp:send(Sock, ?DONE), State;
+
+
+% Associates an object with a new point
+process_cmd(State=#state{space=undefined}, <<"associate point ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [LatB, LngB, <<"with">>, Obj] ->
+            % Convert lat and lng to floats
+            Lat = to_float(LatB),
+            Lng = to_float(LngB),
+            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
+
+            % Check for proper types
+            if
+                InvalidLatLng ->
+                    gen_tcp:send(Sock, ?BAD_LATLNG);
+
+                true ->
+                    case teles_data_manager:associate(Sp, Obj, Lat, Lng, undefined) of
+                        ok -> gen_tcp:send(Sock, ?DONE);
+                        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND)
+                    end
+            end;
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
+    end,
+    State;
+
+
+% Disassociates a GID with an Object
+process_cmd(State=#state{space=undefined}, <<"disassociate ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate ", Rest/binary>>) ->
+    case binary:split(Rest, [<<" ">>], [global]) of
+        [GIDS, <<"with">>, Obj] ->
+            GID = to_integer(GIDS),
+            if
+                not is_integer(GID) ->
+                    gen_tcp:send(Sock, <<"Client Error: Bad GID format\n">>);
+
+                true ->
+                    case teles_data_manager:disassociate(Sp, Obj, GID) of
+                        ok -> gen_tcp:send(Sock, ?DONE);
+                        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
+                        {error, not_associated, _} -> gen_tcp:send(Sock, <<"GID not associated\n">>)
+                    end
+            end;
+        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
+    end,
+    State;
+
+
+% Deletes an object
+process_cmd(State=#state{space=undefined}, <<"delete object ", _OID/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"delete object ", OID/binary>>) ->
+    case teles_data_manager:delete(Sp, OID) of
+        ok -> gen_tcp:send(Sock, ?DONE);
+        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND)
+    end,
+    State;
+
+
+% Lists the associations of an object
+process_cmd(State=#state{space=undefined}, <<"list associations with ", _Obj/binary>>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"list associations with ", Obj/binary>>) ->
+    case teles_data_manager:list_associations(Sp, Obj) of
+        not_found -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
+        {ok, Obj, _Val, Geos} ->
+            Associations = [association_line(ID, Geo) ||{ID, _, Geo} <- Geos],
+            send_list(Sock, Associations)
+    end,
+    State;
+
+
+% Lists the existing objects
+process_cmd(State=#state{space=undefined}, <<"list objects">>) -> ?SPACE_NEEDED(State);
+process_cmd(State=#state{socket=Sock, space=Sp}, <<"list objects">>) ->
+    {ok, Objects} = teles_data_manager:list_objects(Sp),
+    send_list(Sock, Objects), State;
+
+
 % Sets the associated space of a connection. Required for most commands
 process_cmd(State=#state{socket=Sock}, <<"use space ", Space/binary>>) ->
     Spaces = teles_data_manager:list_spaces(),
@@ -124,192 +307,6 @@ process_cmd(State=#state{socket=Sock, space=Sp}, <<"delete space ", Space/binary
 process_cmd(State=#state{socket=Sock}, <<"list spaces">>) ->
     Spaces = teles_data_manager:list_spaces(),
     send_list(Sock, Spaces), State;
-
-
-% Executes a different command in a space
-process_cmd(State=#state{socket=Sock}, <<"in ", Rest/binary>>) ->
-    case binary:split(Rest, [<<" ">>]) of
-        [Space, Cmd] ->
-            % Store the current space
-            CurSpace = State#state.space,
-
-            % Invoke the command in the new space
-            S1 = State#state{space=Space},
-            S2 = process_cmd(S1, Cmd),
-
-            % Restore the state
-            S2#state{space=CurSpace};
-
-        _ -> gen_tcp:send(Sock, ?BAD_ARGS), State
-    end;
-
-
-% Adds a new object
-process_cmd(State=#state{space=undefined}, <<"add object ", _OID/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"add object ", OID/binary>>) ->
-    % Don't support values for now
-    ok = teles_data_manager:add_object(Sp, OID, undefined),
-    gen_tcp:send(Sock, ?DONE), State;
-
-
-% Deletes an object
-process_cmd(State=#state{space=undefined}, <<"delete object ", _OID/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"delete object ", OID/binary>>) ->
-    case teles_data_manager:delete(Sp, OID) of
-        ok -> gen_tcp:send(Sock, ?DONE);
-        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND)
-    end,
-    State;
-
-
-% Lists the existing objects
-process_cmd(State=#state{space=undefined}, <<"list objects">>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"list objects">>) ->
-    {ok, Objects} = teles_data_manager:list_objects(Sp),
-    send_list(Sock, Objects), State;
-
-
-% Associates an object with a new point
-process_cmd(State=#state{space=undefined}, <<"associate point ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"associate point ", Rest/binary>>) ->
-    case binary:split(Rest, [<<" ">>], [global]) of
-        [LatB, LngB, <<"with">>, Obj] ->
-            % Convert lat and lng to floats
-            Lat = to_float(LatB),
-            Lng = to_float(LngB),
-            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
-
-            % Check for proper types
-            if
-                InvalidLatLng ->
-                    gen_tcp:send(Sock, ?BAD_LATLNG);
-
-                true ->
-                    case teles_data_manager:associate(Sp, Obj, Lat, Lng, undefined) of
-                        ok -> gen_tcp:send(Sock, ?DONE);
-                        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND)
-                    end
-            end;
-        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
-    end,
-    State;
-
-
-% Lists the associations of an object
-process_cmd(State=#state{space=undefined}, <<"list associations with ", _Obj/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"list associations with ", Obj/binary>>) ->
-    case teles_data_manager:list_associations(Sp, Obj) of
-        not_found -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
-        {ok, Obj, _Val, Geos} ->
-            Associations = [association_line(ID, Geo) ||{ID, _, Geo} <- Geos],
-            send_list(Sock, Associations)
-    end,
-    State;
-
-
-% Disassociates a GID with an Object
-process_cmd(State=#state{space=undefined}, <<"disassociate ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"disassociate ", Rest/binary>>) ->
-    case binary:split(Rest, [<<" ">>], [global]) of
-        [GIDS, <<"with">>, Obj] ->
-            GID = to_integer(GIDS),
-            if
-                not is_integer(GID) ->
-                    gen_tcp:send(Sock, <<"Client Error: Bad GID format\n">>);
-
-                true ->
-                    case teles_data_manager:disassociate(Sp, Obj, GID) of
-                        ok -> gen_tcp:send(Sock, ?DONE);
-                        {error, not_found, _} -> gen_tcp:send(Sock, ?OBJ_NOT_FOUND);
-                        {error, not_associated, _} -> gen_tcp:send(Sock, <<"GID not associated\n">>)
-                    end
-            end;
-        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
-    end,
-    State;
-
-
-% Queries within a search box
-process_cmd(State=#state{space=undefined}, <<"query within ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"query within ", Rest/binary>>) ->
-    case binary:split(Rest, [<<" ">>], [global]) of
-        [MinLatS, MaxLatS, MinLngS, MaxLngS] ->
-            MinLat = to_float(MinLatS),
-            MaxLat = to_float(MaxLatS),
-            MinLng = to_float(MinLngS),
-            MaxLng = to_float(MaxLngS),
-            InvalidLatLng = invalid_lat(MinLat) orelse invalid_lat(MaxLat)
-                            orelse invalid_lng(MinLng) orelse invalid_lng(MaxLng),
-
-            if
-                InvalidLatLng ->
-                    gen_tcp:send(Sock, ?BAD_LATLNG);
-
-                MinLat > MaxLat orelse MinLng > MaxLng ->
-                    gen_tcp:send(Sock, ?BAD_LATLNG);
-
-                true ->
-                    Box = #geometry{dimensions=2, mbr=[{MinLat, MaxLat}, {MinLng, MaxLng}]},
-                    {ok, Results} = teles_data_manager:query_within(Sp, Box),
-                    send_list(Sock, Results)
-            end;
-        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
-    end,
-    State;
-
-
-% Query the nearest points
-process_cmd(State=#state{space=undefined}, <<"query nearest ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"query nearest ", Rest/binary>>) ->
-    case binary:split(Rest, [<<" ">>], [global]) of
-        [K_str, <<"to">>, LatS, LngS] ->
-            K = to_integer(K_str),
-            Lat = to_float(LatS),
-            Lng = to_float(LngS),
-            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
-
-            if
-                InvalidLatLng ->
-                    gen_tcp:send(Sock, ?BAD_LATLNG);
-
-                not is_integer(K) orelse K < 1 ->
-                    gen_tcp:send(Sock, <<"Client Error: Bad K format\n">>);
-
-                true ->
-                    Point = rstar_geometry:point2d(Lat, Lng, undefined),
-                    {ok, Results} = teles_data_manager:query_nearest(Sp, Point, K),
-                    send_list(Sock, Results)
-            end;
-        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
-    end,
-    State;
-
-
-% Query around a given point
-process_cmd(State=#state{space=undefined}, <<"query around ", _Rest/binary>>) -> ?SPACE_NEEDED(State);
-process_cmd(State=#state{socket=Sock, space=Sp}, <<"query around ", Rest/binary>>) ->
-    case binary:split(Rest, [<<" ">>], [global]) of
-        [LatS, LngS, <<"for">>, DistS] ->
-            Lat = to_float(LatS),
-            Lng = to_float(LngS),
-            Dist = dist_to_float(DistS),
-            InvalidLatLng = invalid_lat(Lat) orelse invalid_lng(Lng),
-
-            if
-                InvalidLatLng ->
-                    gen_tcp:send(Sock, ?BAD_LATLNG);
-
-                not is_float(Dist) ->
-                    gen_tcp:send(Sock, <<"Client Error: Bad distance format\n">>);
-
-                true ->
-                    Point = rstar_geometry:point2d(Lat, Lng, undefined),
-                    {ok, Results} = teles_data_manager:query_around(Sp, Point, Dist),
-                    send_list(Sock, Results)
-            end;
-        _ -> gen_tcp:send(Sock, ?BAD_ARGS)
-    end,
-    State;
 
 
 % Catch all for an undefined command
