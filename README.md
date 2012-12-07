@@ -332,6 +332,18 @@ Here is a list of "best-practices" for client implementations:
 * Doing a 'use space' at the start of the connection avoids the need to
   specify 'in <space>' before each connection
 
+Performance
+-----------
+
+Casual testing was performed on a 2012 Macbook Pro with default configurations,
+and a concurrency of 4 per space. Average insert time was 500μs, resulting in an
+total of 2000 inserts per second. Performing ``query around`` with a random
+lat/lng and random distance between 1 and 100 miles took 300μs but with mutilple clients
+about 6000 QPS can be achieved. Lastly, doing ``query nearest`` with a random lat/lng
+and between 1 and 50 neighbors took 1.6ms on average, and with 4 clients 2400 QPS
+was possible.
+
+
 References
 ----------
 
