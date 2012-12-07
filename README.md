@@ -323,7 +323,7 @@ Clients
 ----------
 Here is a list of known client implementations:
 
-* TODO
+* Python : https://github.com/armon/pyteles
 
 
 Here is a list of "best-practices" for client implementations:
