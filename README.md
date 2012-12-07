@@ -109,6 +109,9 @@ already exist, and creates it. It always returns "Done\n":
     > create space states
     Done
 
+Issuing a ``create space`` also causes that space to be used. For this reason, if you
+want to use a space and ensure it exists, it is safe to always use create.
+
 The ``delete space`` command is like ``create space`` but may return "Space does not exist".
 
 The ``list spaces`` command takes no arguments but will list all the spaces in a
@@ -240,9 +243,80 @@ the following suffixes are understood:
 * y: Yard        (2000y)
 * ft: Feet       (5000ft)
 
+There are also various error codes that are possible. If arguments
+are bad, the server can return: "Client Error: Bad arguments\n".
+If latitude or longitude is bad, then "Client Error: Bad lat/lng format\n"
+may be returned. Lastly commands that require a namespace (either through use
+of ``in`` or ``use space``) will return "Client Error: Must use a namespace\n"
+if one is not provided.
+
 
 Example
 ----------
+
+Here is an example of a client flow, assuming teles is
+running on the default port using just telnet::
+
+    $ telnet localhost 2856
+    > list spaces
+    START
+    END
+
+    > create space testing
+    Done
+
+    > list spaces
+    START
+    testing
+    END
+
+    > list objects
+    START
+    END
+
+    > add object jill
+    Done
+
+    > add object jack
+    Done
+
+    > add object joe
+    Done
+
+    > delete object joe
+    Done
+
+    > list objects
+    START
+    jack
+    jill
+    END
+
+    > associate point 40.123 -120.515 with jack
+    Done
+
+    > associate point 40.123 -120.515 with jill
+    Done
+
+    > list associations with jack
+    START
+    GID=2192486008 lat=40.1230 lng=-120.5150
+    END
+
+    > disassociate 2192486008 with jack
+    Done
+
+    > list associations with jack
+    START
+    END
+
+    > query nearest 5 to 40.123 -120.515
+    START
+    jill
+    END
+
+    > delete space testing
+    Done
 
 
 Clients
@@ -261,5 +335,14 @@ Here is a list of "best-practices" for client implementations:
 References
 ----------
 
-The R*-tree implemetation is from the [erl-rstar package](http://github.com/armon/erl-rstar).
+Packages:
+
+* The R*-tree implemetation is from the [erl-rstar package](http://github.com/armon/erl-rstar).
+
+Related works:
+
+* [R-trees: A dynamic index structure for spacial searching](http://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Guttman84.pdf)
+* [The R*-tree: An Efficient and Robust Access Method for Points and Rectangles](http://www.cs.ucr.edu/~tsotras/cs236/F11/rstar.pdf)
+* [Nearest Neighbor Queries](http://postgis.refractions.net/support/nearestneighbor.pdf)
+* [Enhanced Nearest Neighbor Search on the R-tree](www.cse.cuhk.edu.hk/~adafu/Pub/rtree.ps)
 
