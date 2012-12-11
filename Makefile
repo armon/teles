@@ -22,7 +22,7 @@ devrel: rel
 	ln -sf $(abspath ./apps/$(APP)/priv) rel/$(APP)/lib/$(APP)-*
 
 rel: compile
-	./rebar generate -f overlay_vars=vars/$(ENVIRONMENT).config
+	cd rel; ../rebar generate -f overlay_vars=vars/$(ENVIRONMENT).config
 
 test: compile
 	./rebar eunit apps=$(APP)
