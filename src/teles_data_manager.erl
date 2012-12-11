@@ -33,7 +33,6 @@ init([NumAgents]) ->
 
 
 handle_call({create_space, Space}, _From, State) ->
-    lager:info("Creating space ~s", [Space]),
     {_, State1} = agents_for_space(Space, State),
     {reply, ok, State1};
 
@@ -139,6 +138,9 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % Starts new agents for a given space
 start_agents(Space, State) ->
+    % Log this
+    lager:info("Creating space ~s", [Space]),
+
     % Start the Pids
     Num = State#state.num_agents,
     Pids = teles_data_manager_sup:start_agents(Num, Space),
