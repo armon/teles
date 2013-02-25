@@ -123,7 +123,7 @@ longitudinal_width(Lat) ->
 distance_test() ->
     A = rstar_geometry:point2d(47.123, 120.567, undefined),
     B = rstar_geometry:point2d(45.876, 123.876, undefined),
-    ?assertEqual(289038.07836511626, distance(A, B)).
+    ?assertEqual(289038078, trunc(1000*distance(A, B))).
 
 distance_near_test() ->
     A = rstar_geometry:point2d(47.123, 120.567, undefined),
