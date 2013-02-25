@@ -1,4 +1,4 @@
-Teles
+Teles [![Build Status](https://travis-ci.org/armon/teles.png)](https://travis-ci.org/armon/teles)
 =====
 
 Teles is an Erlang network service for manipulating geographic data.
