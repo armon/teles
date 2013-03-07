@@ -324,7 +324,7 @@ Clients
 Here is a list of known client implementations:
 
 * Python : https://github.com/armon/pyteles
-
+* Go : https://github.com/geetarista/go-teles
 
 Here is a list of "best-practices" for client implementations:
 
