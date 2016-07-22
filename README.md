@@ -1,4 +1,28 @@
-Teles [![Build Status](https://travis-ci.org/armon/teles.png)](https://travis-ci.org/armon/teles)
+Docker Image
+========
+A Docker image for [Armon's Teles service](https://github.com/armon/teles).
+
+Getting Started
+--------
+```bash
+docker run -d -p 2856:2856 speyside/teles:v1.0.0
+```
+teles is now listening on port 2856 on localhost.
+
+Persistent Volumes
+--------
+The teles docker image mounts a configuration volume at `/etc/teles`. The default configuration can be overwritten by mounting a `/etc/v` volume containing a new configuration file named `app.config`. The default configuration file is:
+
+    [
+     {teles, [
+                {teles_agent_concurrency, 4},
+                {teles_port, 2856},
+                {teles_accept_pool, 8}
+            ]}
+    ].
+
+
+Teles
 =====
 
 Teles is an Erlang network service for manipulating geographic data.
@@ -19,34 +43,9 @@ Features
 * Relatively fast
 
 
-Install
--------
 
-Download and build from source::
-
-    $ git clone https://armon@github.com/armon/teles.git
-    $ cd teles
-    $ make deps
-    $ make rel
-
-At this point, rel/teles will contain a release build
-
-
-Usage
------
-
-Teles can be configured using the sys.config file.
-Here is an example configuration file:
-
-    [
-     {teles, [
-                {teles_agent_concurrency, 4},
-                {teles_port, 2856},
-                {teles_accept_pool, 8}
-            ]}
-    ].
-
-
+Configuration Options
+---------------------
 Here is a brief description of the configurations:
 
 * teles\_agent\_concurrency : This controls how many duplicate copies of data
@@ -331,30 +330,4 @@ Here is a list of "best-practices" for client implementations:
 * Maintain a set of open connections to the server to minimize connection time
 * Doing a 'use space' at the start of the connection avoids the need to
   specify 'in <space>' before each connection
-
-Performance
------------
-
-Casual testing was performed on a 2012 Macbook Pro with default configurations,
-and a concurrency of 4 per space. For a space with 370,000 objects, average insert
-time was 500μs, resulting in an total of 2000 inserts per second. Performing ``query around``
-with a random lat/lng and random distance between 1 and 100 miles took 300μs but with
-mutilple clients about 6000 QPS can be achieved. Lastly, doing ``query nearest`` with
-a random lat/lng and between 1 and 50 neighbors took 1.6ms on average, and with 4 clients
-2400 QPS was possible.
-
-
-References
-----------
-
-Packages:
-
-* The R*-tree implemetation is from the [erl-rstar package](http://github.com/armon/erl-rstar).
-
-Related works:
-
-* [R-trees: A dynamic index structure for spacial searching](http://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Guttman84.pdf)
-* [The R*-tree: An Efficient and Robust Access Method for Points and Rectangles](http://www.cs.ucr.edu/~tsotras/cs236/F11/rstar.pdf)
-* [Nearest Neighbor Queries](http://postgis.refractions.net/support/nearestneighbor.pdf)
-* [Enhanced Nearest Neighbor Search on the R-tree](http://www.cse.cuhk.edu.hk/~adafu/Pub/rtree.ps)
 
